@@ -1,0 +1,86 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#020617" />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    {description && <meta name="description" content={description} />}
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+    <script type="module">
+      // SPA Navigation with view transitions
+      const pageContent = document.body;
+      
+      async function loadPage(url) {
+        try {
+          const response = await fetch(url);
+          const html = await response.text();
+          
+          // Parse the response to get the body content
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const newContent = doc.body;
+          
+          // Fade out transition
+          pageContent.style.opacity = '0.7';
+          pageContent.style.transition = 'opacity 0.2s ease-in-out';
+          
+          // Update content
+          setTimeout(() => {
+            pageContent.innerHTML = newContent.innerHTML;
+            pageContent.style.opacity = '1';
+            
+            // Re-attach event listeners
+            attachNavigationListeners();
+            
+            // Update page title
+            document.title = doc.title;
+            
+            // Scroll to top
+            window.scrollTo(0, 0);
+          }, 200);
+        } catch (error) {
+          console.error('Failed to load page:', error);
+          window.location.href = url;
+        }
+      }
+      
+      function attachNavigationListeners() {
+        document.querySelectorAll('a').forEach(link => {
+          const href = link.getAttribute('href');
+          if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto:')) {
+            link.addEventListener('click', (e) => {
+              e.preventDefault();
+              window.history.pushState(null, '', href);
+              loadPage(href);
+            });
+          }
+        });
+      }
+      
+      // Initial setup
+      attachNavigationListeners();
+      
+      // Handle back button
+      window.addEventListener('popstate', () => {
+        loadPage(window.location.pathname);
+      });
+    </script>
+  </body>
+</html>
