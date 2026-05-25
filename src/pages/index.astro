@@ -9,6 +9,13 @@ import '../styles/global.css';
       <section class="mb-10 sm:mb-12">
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
           <span data-greeting-message>...</span>, Carlos 👋
+          <script is:inline>
+            const greetingMessage = document.querySelector('[data-greeting-message]');
+
+            if (greetingMessage && typeof window.getGreetingMessage === 'function') {
+              greetingMessage.textContent = window.getGreetingMessage();
+            }
+          </script>
         </h1>
         <p class="mt-3 text-base text-slate-600">Seleccione la operación que desea registrar</p>
       </section>
@@ -183,20 +190,4 @@ import '../styles/global.css';
     </main>
   </div>
 
-  <script>
-    const greetingMessage = document.getElementById('greeting-message');
-
-    if (greetingMessage) {
-      const currentHour = new Date().getHours();
-      let greeting = 'Buenas noches';
-
-      if (currentHour >= 0 && currentHour < 12) {
-        greeting = 'Buenos días';
-      } else if (currentHour >= 12 && currentHour < 19) {
-        greeting = 'Buenas tardes';
-      }
-
-      greetingMessage.textContent = greeting;
-    }
-  </script>
 </BaseLayout>

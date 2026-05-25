@@ -17,11 +17,11 @@ export default defineConfig({
 					enabled: true,
 				},
 				includeAssets: [
-					'favicon.svg',
-					'favicon.ico',
+					'icons/favicon-32.png',
 					'icons/icon-192.png',
 					'icons/icon-512.png',
-					'apple-touch-icon.png',
+					'icons/apple-touch-icon.png',
+					'sw.js',
 				],
 				manifest: {
 					id: '/',
@@ -47,13 +47,14 @@ export default defineConfig({
 							purpose: 'any maskable',
 						},
 						{
-							src: '/apple-touch-icon.png',
+							src: '/icons/apple-touch-icon.png',
 							sizes: '180x180',
 							type: 'image/png',
 							purpose: 'any',
 						},
 					],
 				},
+				
 			}),
 		],
 	},

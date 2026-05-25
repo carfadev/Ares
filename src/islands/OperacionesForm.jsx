@@ -3,6 +3,8 @@ import { getSedes, getBodegasBySede } from '../data/sedes';
 import Lottie from 'lottie-react';
 import forkliftAnimation from '../assets/lotties/Forklift.json';
 import truckAnimation from '../assets/lotties/truck.json';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 const operationThemes = {
   CARGUE: {
@@ -54,6 +56,7 @@ export default function OperacionesForm() {
     tipoOperacion: '', sede: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: ''
   });
   const [isClient, setIsClient] = useState(false);
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -120,20 +123,33 @@ export default function OperacionesForm() {
     const cam = document.getElementById('camara'); const arc = document.getElementById('archivos'); if (cam) cam.value=''; if (arc) arc.value='';
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validarFormulario()) { alert('Corrija los errores'); return; }
-    const horaInicio = new Date().toISOString();
+    setGuardando(true);
+
     const registro = {
       ...formData,
       muelle: formData.muelle ? parseInt(formData.muelle) : null,
-      horaInicio,
+      horaInicio: new Date().toISOString(),
       evidencias: imagenes.map(f=>({ name: f.name, size: f.size, type: f.type })),
-      fechaCreacion: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })
+      fechaCreacion: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
-    console.log('Registro de cargue', registro);
-    alert('Registro guardado (temporal)');
-    resetear();
+
+    try {
+      await addDoc(collection(db, 'cargues_descargues'), registro);
+      alert('Registro guardado en Firestore');
+      resetear();
+    } catch (error) {
+      console.error('Error guardando en Firestore', error);
+      alert(error?.code === 'permission-denied'
+        ? 'Firestore bloqueó la escritura. Tus reglas actuales no permiten guardar sin autenticación.'
+        : 'No se pudo guardar el registro en Firestore.');
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const fieldBase = 'mt-1 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400';
@@ -299,8 +315,8 @@ export default function OperacionesForm() {
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-4">
-          <button type="submit" className={`${actionBase} ${operationTheme.button} text-white shadow-sm`}>
-            {submitLabel}
+          <button type="submit" disabled={guardando} className={`${actionBase} ${operationTheme.button} text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60`}>
+            {guardando ? 'GUARDANDO...' : submitLabel}
           </button>
           <button type="button" onClick={resetear} className={`${actionBase} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200`}>
             LIMPIAR FORMULARIO
