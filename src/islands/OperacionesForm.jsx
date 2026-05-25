@@ -1,5 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { getSedes, getBodegasBySede } from '../data/sedes';
+import Lottie from 'lottie-react';
+import forkliftAnimation from '../assets/lotties/Forklift.json';
+import truckAnimation from '../assets/lotties/truck.json';
 
 const operationThemes = {
   CARGUE: {
@@ -50,6 +53,11 @@ export default function OperacionesForm() {
   const [formData, setFormData] = useState({
     tipoOperacion: '', sede: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: ''
   });
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const bodegasDisponibles = useMemo(() => formData.sede ? getBodegasBySede(formData.sede) : [], [formData.sede]);
   const [imagenes, setImagenes] = useState([]);
@@ -139,10 +147,26 @@ export default function OperacionesForm() {
   return (
     <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/70">
       <div className="border-b border-slate-100 bg-white px-4 py-5 sm:px-8 sm:py-6">
-        <div className="flex items-start gap-4">
-          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${operationTheme.badge}`}>
-            {operationTheme.icon}
-          </div>
+        <div className="flex items-center gap-4">
+          {!formData.tipoOperacion ? (
+            <div className="w-16 h-16 shrink-0 flex items-center justify-center">
+              {isClient ? <Lottie animationData={truckAnimation} loop style={{ width: 64, height: 64 }} /> : null}
+            </div>
+          ) : (formData.tipoOperacion === 'CARGUE' || formData.tipoOperacion === 'DESCARGUE') ? (
+            <div className="w-16 h-16 shrink-0 flex items-center justify-center">
+              {isClient ? (
+                <Lottie
+                  animationData={forkliftAnimation}
+                  loop
+                  style={formData.tipoOperacion === 'DESCARGUE' ? { width: 64, height: 64, transform: 'scaleX(-1)', transformOrigin: 'center' } : { width: 64, height: 64 }}
+                />
+              ) : null}
+            </div>
+          ) : (
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${operationTheme.badge}`}>
+              {operationTheme.icon}
+            </div>
+          )}
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Registro Operativo</p>
             <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">{operationTheme.title}</h2>
