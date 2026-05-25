@@ -1,6 +1,51 @@
 import React, { useState, useMemo } from 'react';
 import { getSedes, getBodegasBySede } from '../data/sedes';
 
+const operationThemes = {
+  CARGUE: {
+    accent: 'from-orange-500 via-orange-600 to-amber-500',
+    accentSoft: 'bg-orange-50 text-orange-700 ring-orange-100',
+    badge: 'bg-orange-100 text-orange-700',
+    button: 'bg-orange-500 hover:bg-orange-600 focus:ring-orange-300',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m12 19-7-7 7-7" />
+        <path d="M19 12H5" />
+      </svg>
+    ),
+    title: 'Cargue',
+    /* description: 'Complete la información requerida.' */
+  },
+  DESCARGUE: {
+    accent: 'from-sky-500 via-blue-600 to-indigo-500',
+    accentSoft: 'bg-sky-50 text-sky-700 ring-sky-100',
+    badge: 'bg-sky-100 text-sky-700',
+    button: 'bg-sky-500 hover:bg-sky-600 focus:ring-sky-300',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m12 5 7 7-7 7" />
+        <path d="M5 12h14" />
+      </svg>
+    ),
+    title: 'Descargue',
+    /* description: 'Complete la información requerida.' */
+  },
+  DEFAULT: {
+    accent: 'from-slate-600 via-slate-700 to-slate-800',
+    accentSoft: 'bg-slate-50 text-slate-700 ring-slate-100',
+    badge: 'bg-slate-100 text-slate-700',
+    button: 'bg-slate-700 hover:bg-slate-800 focus:ring-slate-300',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9 12h6" />
+      </svg>
+    ),
+    title: 'Seleccione el tipo de operación',
+    /* description: 'Complete la información requerida.' */
+  }
+};
+
 export default function OperacionesForm() {
   const [formData, setFormData] = useState({
     tipoOperacion: '', sede: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: ''
@@ -88,22 +133,29 @@ export default function OperacionesForm() {
   const helperText = 'mt-1 text-[11px] text-slate-500';
   const errorText = 'mt-1 text-[11px] font-medium text-rose-600';
   const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const operationTheme = operationThemes[formData.tipoOperacion] || operationThemes.DEFAULT;
+  const submitLabel = formData.tipoOperacion === 'DESCARGUE' ? 'REGISTRAR DESCARGUE' : formData.tipoOperacion === 'CARGUE' ? 'REGISTRAR CARGUE' : 'REGISTRAR OPERACIÓN';
 
   return (
     <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/70">
-      <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-rose-500 px-4 py-8 text-center text-white sm:px-8 sm:py-10">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm sm:h-16 sm:w-16">
-          <span className="text-2xl font-bold sm:text-3xl">R</span>
+      <div className="border-b border-slate-100 bg-white px-4 py-5 sm:px-8 sm:py-6">
+        <div className="flex items-start gap-4">
+          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${operationTheme.badge}`}>
+            {operationTheme.icon}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Registro Operativo</p>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">{operationTheme.title}</h2>
+            <p className="mt-2 text-sm text-slate-600">{operationTheme.description}</p>
+          </div>
         </div>
-        <h2 className="text-xl font-extrabold tracking-tight sm:text-3xl">Control de Cargues</h2>
-        <p className="mt-2 text-xs text-white/90 sm:text-sm">Registro de operaciones • Repremundo</p>
       </div>
 
       <form onSubmit={handleSubmit} className="px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
           <label className="block">
             <span className={labelBase}>Tipo de Operación <span className="text-rose-500">*</span></span>
-            <select name="tipoOperacion" value={formData.tipoOperacion} onChange={handleInputChange} className={fieldBase}>
+            <select name="tipoOperacion" value={formData.tipoOperacion} onChange={handleInputChange} className={`${fieldBase} ${operationTheme.accentSoft} ring-1 ring-inset`}>
               <option value="">Seleccione una opción</option>
               <option value="CARGUE">CARGUE</option>
               <option value="DESCARGUE">DESCARGUE</option>
@@ -223,8 +275,8 @@ export default function OperacionesForm() {
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-4">
-          <button type="submit" className={`${actionBase} bg-emerald-500 text-white shadow-sm hover:bg-emerald-600 focus:ring-emerald-300`}>
-            REGISTRAR CARGUE
+          <button type="submit" className={`${actionBase} ${operationTheme.button} text-white shadow-sm`}>
+            {submitLabel}
           </button>
           <button type="button" onClick={resetear} className={`${actionBase} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200`}>
             LIMPIAR FORMULARIO
