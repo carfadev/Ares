@@ -16,12 +16,27 @@ const { title, description } = Astro.props;
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#020617" />
     <meta name="generator" content={Astro.generator} />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" href="/favicon.ico" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <script type="module" src="/registerSW.js"></script>
     {description && <meta name="description" content={description} />}
     <title>{title}</title>
+    <script is:inline>
+      window.getGreetingMessage = function getGreetingMessage() {
+        const currentHour = new Date().getHours();
+
+        if (currentHour >= 0 && currentHour < 12) {
+          return 'Buenos días';
+        }
+
+        if (currentHour >= 12 && currentHour < 19) {
+          return 'Buenas tardes';
+        }
+
+        return 'Buenas noches';
+      };
+    </script>
   </head>
   <body style={`background: ${clientConfig.colors.neutroClaro}`}>
     <header
@@ -54,16 +69,7 @@ const { title, description } = Astro.props;
 
         if (!greetingMessage) return;
 
-        const currentHour = new Date().getHours();
-        let greeting = 'Buenas noches';
-
-        if (currentHour >= 0 && currentHour < 12) {
-          greeting = 'Buenos días';
-        } else if (currentHour >= 12 && currentHour < 19) {
-          greeting = 'Buenas tardes';
-        }
-
-        greetingMessage.textContent = greeting;
+        greetingMessage.textContent = window.getGreetingMessage ? window.getGreetingMessage() : 'Buenos días';
       }
       
       async function loadPage(url) {
@@ -107,6 +113,12 @@ const { title, description } = Astro.props;
           if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto:')) {
             link.addEventListener('click', (e) => {
               e.preventDefault();
+
+              if (href.startsWith('/operaciones')) {
+                window.location.href = href;
+                return;
+              }
+
               window.history.pushState(null, '', href);
               loadPage(href);
             });
