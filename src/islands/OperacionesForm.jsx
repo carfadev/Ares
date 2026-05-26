@@ -3,7 +3,7 @@ import { getSedes, getBodegasBySede } from '../data/sedes';
 import Lottie from 'lottie-react';
 import forkliftAnimation from '../assets/lotties/Forklift.json';
 import truckAnimation from '../assets/lotties/truck.json';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 const operationThemes = {
@@ -35,6 +35,20 @@ const operationThemes = {
     title: 'Descargue',
     /* description: 'Complete la información requerida.' */
   },
+  HORA_FINAL: {
+    accent: 'from-emerald-500 via-teal-600 to-cyan-600',
+    accentSoft: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    badge: 'bg-emerald-100 text-emerald-700',
+    button: 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-300',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </svg>
+    ),
+    title: 'Hora final',
+    description: 'Cierra una operación activa por placa.',
+  },
   DEFAULT: {
     accent: 'from-slate-600 via-slate-700 to-slate-800',
     accentSoft: 'bg-slate-50 text-slate-700 ring-slate-100',
@@ -57,6 +71,7 @@ export default function OperacionesForm() {
   });
   const [isClient, setIsClient] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [novedadCierre, setNovedadCierre] = useState('');
 
   useEffect(() => {
     setIsClient(true);
@@ -70,8 +85,21 @@ export default function OperacionesForm() {
 
   const validarPlaca = (placa) => /^[A-Z]{3}[0-9]{3}$/.test(placa);
 
+  const normalizarPlaca = (valor = '') => valor.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+
+  const fechaBogotaTexto = (fecha) => fecha.toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+
+  const esHoraFinal = formData.tipoOperacion === 'HORA_FINAL';
+
+  const obtenerMilisegundosEntrada = (data) => {
+    if (data?.createdAt?.toMillis) return data.createdAt.toMillis();
+    if (data?.horaEntradaISO) return new Date(data.horaEntradaISO).getTime();
+    if (data?.horaInicio) return new Date(data.horaInicio).getTime();
+    return NaN;
+  };
+
   const handlePlacaChange = (e) => {
-    let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0,6);
+    let value = normalizarPlaca(e.target.value);
     if (value.length === 6 && !validarPlaca(value)) {
       setErrores(prev => ({ ...prev, placa: 'Formato inválido (ej: ABC123)' }));
     } else {
@@ -106,13 +134,18 @@ export default function OperacionesForm() {
 
   const validarFormulario = () => {
     const nErr = {};
-    if (!formData.tipoOperacion) nErr.tipoOperacion = 'Requerido';
-    if (!formData.sede) nErr.sede = 'Requerido';
-    if (!formData.bodega) nErr.bodega = 'Requerido';
-    if (!formData.cliente || !formData.cliente.trim()) nErr.cliente = 'Requerido';
-    if (!formData.conductor || !formData.conductor.trim()) nErr.conductor = 'Requerido';
-    if (!formData.numeroCC || !/^[0-9]+$/.test(formData.numeroCC)) nErr.numeroCC = 'Número inválido';
-    if (!formData.placa || !validarPlaca(formData.placa)) nErr.placa = 'Placa inválida';
+    if (!formData.tipoOperacion) {
+      nErr.tipoOperacion = 'Requerido';
+    } else if (esHoraFinal) {
+      if (!formData.placa || !validarPlaca(formData.placa)) nErr.placa = 'Placa inválida';
+    } else {
+      if (!formData.sede) nErr.sede = 'Requerido';
+      if (!formData.bodega) nErr.bodega = 'Requerido';
+      if (!formData.cliente || !formData.cliente.trim()) nErr.cliente = 'Requerido';
+      if (!formData.conductor || !formData.conductor.trim()) nErr.conductor = 'Requerido';
+      if (!formData.numeroCC || !/^[0-9]+$/.test(formData.numeroCC)) nErr.numeroCC = 'Número inválido';
+      if (!formData.placa || !validarPlaca(formData.placa)) nErr.placa = 'Placa inválida';
+    }
     setErrores(nErr);
     return Object.keys(nErr).length === 0;
   };
@@ -120,7 +153,44 @@ export default function OperacionesForm() {
   const resetear = () => {
     setFormData({ tipoOperacion: '', sede: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: '' });
     setImagenes([]); setPreviews([]); setErrores({});
+    setNovedadCierre('');
     const cam = document.getElementById('camara'); const arc = document.getElementById('archivos'); if (cam) cam.value=''; if (arc) arc.value='';
+  };
+
+  const cerrarOperacionPorPlaca = async (placa) => {
+    const consulta = query(collection(db, 'cargues_descargues'), where('placa', '==', placa));
+    const snap = await getDocs(consulta);
+
+    const activos = snap.docs
+      .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+      .filter((item) => item.estado !== 'FINALIZADO' && !item.salidaRegistrada);
+
+    if (!activos.length) {
+      throw new Error('No hay operación activa para esta placa.');
+    }
+
+    const operacionActiva = activos.sort((a, b) => {
+      const aMs = obtenerMilisegundosEntrada(a);
+      const bMs = obtenerMilisegundosEntrada(b);
+      return (Number.isNaN(bMs) ? 0 : bMs) - (Number.isNaN(aMs) ? 0 : aMs);
+    })[0];
+
+    const salida = new Date();
+    const entradaMs = obtenerMilisegundosEntrada(operacionActiva);
+    const duracionMinutos = Number.isNaN(entradaMs)
+      ? null
+      : Math.max(0, Math.round((salida.getTime() - entradaMs) / 60000));
+
+    await updateDoc(doc(db, 'cargues_descargues', operacionActiva.id), {
+      estado: 'FINALIZADO',
+      salidaRegistrada: true,
+      horaSalidaISO: salida.toISOString(),
+      horaSalidaTexto: fechaBogotaTexto(salida),
+      duracionMinutos,
+      novedadCierre: novedadCierre.trim() || 'SIN NOVEDAD',
+      finishedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -128,25 +198,39 @@ export default function OperacionesForm() {
     if (!validarFormulario()) { alert('Corrija los errores'); return; }
     setGuardando(true);
 
-    const registro = {
-      ...formData,
-      muelle: formData.muelle ? parseInt(formData.muelle) : null,
-      horaInicio: new Date().toISOString(),
-      evidencias: imagenes.map(f=>({ name: f.name, size: f.size, type: f.type })),
-      fechaCreacion: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-
     try {
-      await addDoc(collection(db, 'cargues_descargues'), registro);
-      alert('Registro guardado en Firestore');
+      if (esHoraFinal) {
+        await cerrarOperacionPorPlaca(formData.placa);
+        alert(`Hora final registrada para ${formData.placa}.`);
+      } else {
+        const ahora = new Date();
+        const registro = {
+          ...formData,
+          muelle: formData.muelle ? parseInt(formData.muelle, 10) : null,
+          estado: 'EN_PROCESO',
+          salidaRegistrada: false,
+          horaEntradaISO: ahora.toISOString(),
+          horaEntradaTexto: fechaBogotaTexto(ahora),
+          horaSalidaISO: null,
+          horaSalidaTexto: null,
+          duracionMinutos: null,
+          novedadCierre: null,
+          horaInicio: ahora.toISOString(),
+          evidencias: imagenes.map(f=>({ name: f.name, size: f.size, type: f.type })),
+          fechaCreacion: fechaBogotaTexto(ahora),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+
+        await addDoc(collection(db, 'cargues_descargues'), registro);
+        alert('Registro guardado en Firestore');
+      }
       resetear();
     } catch (error) {
       console.error('Error guardando en Firestore', error);
       alert(error?.code === 'permission-denied'
         ? 'Firestore bloqueó la escritura. Tus reglas actuales no permiten guardar sin autenticación.'
-        : 'No se pudo guardar el registro en Firestore.');
+        : error?.message || 'No se pudo guardar el registro en Firestore.');
     } finally {
       setGuardando(false);
     }
@@ -158,7 +242,7 @@ export default function OperacionesForm() {
   const errorText = 'mt-1 text-[11px] font-medium text-rose-600';
   const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2';
   const operationTheme = operationThemes[formData.tipoOperacion] || operationThemes.DEFAULT;
-  const submitLabel = formData.tipoOperacion === 'DESCARGUE' ? 'REGISTRAR DESCARGUE' : formData.tipoOperacion === 'CARGUE' ? 'REGISTRAR CARGUE' : 'REGISTRAR OPERACIÓN';
+  const submitLabel = esHoraFinal ? 'REGISTRAR HORA FINAL' : formData.tipoOperacion === 'DESCARGUE' ? 'REGISTRAR DESCARGUE' : formData.tipoOperacion === 'CARGUE' ? 'REGISTRAR CARGUE' : 'REGISTRAR OPERACIÓN';
 
   return (
     <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/70">
@@ -199,119 +283,140 @@ export default function OperacionesForm() {
               <option value="">Seleccione una opción</option>
               <option value="CARGUE">CARGUE</option>
               <option value="DESCARGUE">DESCARGUE</option>
+              <option value="HORA_FINAL">HORA FINAL</option>
             </select>
-            {errores.tipoOperacion ? <span className={errorText}>{errores.tipoOperacion}</span> : <span className={helperText}>Seleccione el tipo de operación.</span>}
+            {errores.tipoOperacion ? <span className={errorText}>{errores.tipoOperacion}</span> : <span className={helperText}>{esHoraFinal ? 'Cierre una operación activa por placa.' : 'Seleccione el tipo de operación.'}</span>}
           </label>
 
-          <label className="block">
-            <span className={labelBase}>Sede <span className="text-rose-500">*</span></span>
-            <select name="sede" value={formData.sede} onChange={handleInputChange} className={fieldBase}>
-              <option value="">Seleccione una sede</option>
-              {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            {errores.sede ? <span className={errorText}>{errores.sede}</span> : <span className={helperText}>La bodega depende de la sede.</span>}
-          </label>
+        {!esHoraFinal ? (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
+              <label className="block">
+                <span className={labelBase}>Sede <span className="text-rose-500">*</span></span>
+                <select name="sede" value={formData.sede} onChange={handleInputChange} className={fieldBase}>
+                  <option value="">Seleccione una sede</option>
+                  {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                {errores.sede ? <span className={errorText}>{errores.sede}</span> : <span className={helperText}>La bodega depende de la sede.</span>}
+              </label>
 
-          <label className="block">
-            <span className={labelBase}>Bodega <span className="text-rose-500">*</span></span>
-            <select name="bodega" value={formData.bodega} onChange={handleInputChange} disabled={!formData.sede} className={fieldBase}>
-              <option value="">{formData.sede ? 'Seleccione una bodega' : 'Primero seleccione una sede'}</option>
-              {bodegasDisponibles.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
-            {errores.bodega ? <span className={errorText}>{errores.bodega}</span> : <span className={helperText}>Se activa cuando eliges la sede.</span>}
-          </label>
+              <label className="block">
+                <span className={labelBase}>Bodega <span className="text-rose-500">*</span></span>
+                <select name="bodega" value={formData.bodega} onChange={handleInputChange} disabled={!formData.sede} className={fieldBase}>
+                  <option value="">{formData.sede ? 'Seleccione una bodega' : 'Primero seleccione una sede'}</option>
+                  {bodegasDisponibles.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+                {errores.bodega ? <span className={errorText}>{errores.bodega}</span> : <span className={helperText}>Se activa cuando eliges la sede.</span>}
+              </label>
 
-          <label className="block">
-            <span className={labelBase}>Cliente <span className="text-rose-500">*</span></span>
-            <input name="cliente" value={formData.cliente} onChange={handleInputChange} placeholder="Nombre del cliente" className={fieldBase} />
-            {errores.cliente && <span className={errorText}>{errores.cliente}</span>}
-          </label>
+              <label className="block">
+                <span className={labelBase}>Cliente <span className="text-rose-500">*</span></span>
+                <input name="cliente" value={formData.cliente} onChange={handleInputChange} placeholder="Nombre del cliente" className={fieldBase} />
+                {errores.cliente && <span className={errorText}>{errores.cliente}</span>}
+              </label>
 
-          <label className="block">
-            <span className={labelBase}>Muelle <span className="text-rose-500">*</span></span>
-            <input type="number" name="muelle" value={formData.muelle} onChange={handleInputChange} placeholder="Número de muelle" min="1" className={fieldBase} />
-            {errores.muelle ? <span className={errorText}>{errores.muelle}</span> : <span className={helperText}>Ingresa un número mayor a 0.</span>}
-          </label>
+              <label className="block">
+                <span className={labelBase}>Muelle <span className="text-rose-500">*</span></span>
+                <input type="number" name="muelle" value={formData.muelle} onChange={handleInputChange} placeholder="Número de muelle" min="1" className={fieldBase} />
+                {errores.muelle ? <span className={errorText}>{errores.muelle}</span> : <span className={helperText}>Ingresa un número mayor a 0.</span>}
+              </label>
 
-          <label className="block">
-            <span className={labelBase}>Conductor <span className="text-rose-500">*</span></span>
-            <input name="conductor" value={formData.conductor} onChange={handleInputChange} placeholder="Nombre del conductor" className={fieldBase} />
-            {errores.conductor && <span className={errorText}>{errores.conductor}</span>}
-          </label>
+              <label className="block">
+                <span className={labelBase}>Conductor <span className="text-rose-500">*</span></span>
+                <input name="conductor" value={formData.conductor} onChange={handleInputChange} placeholder="Nombre del conductor" className={fieldBase} />
+                {errores.conductor && <span className={errorText}>{errores.conductor}</span>}
+              </label>
 
-          <label className="block">
-            <span className={labelBase}>Número de CC <span className="text-rose-500">*</span></span>
-            <input name="numeroCC" value={formData.numeroCC} onChange={handleInputChange} placeholder="Cédula de ciudadanía" className={fieldBase} />
-            {errores.numeroCC ? <span className={errorText}>{errores.numeroCC}</span> : <span className={helperText}>Solo números.</span>}
-          </label>
+              <label className="block">
+                <span className={labelBase}>Número de CC <span className="text-rose-500">*</span></span>
+                <input name="numeroCC" value={formData.numeroCC} onChange={handleInputChange} placeholder="Cédula de ciudadanía" className={fieldBase} />
+                {errores.numeroCC ? <span className={errorText}>{errores.numeroCC}</span> : <span className={helperText}>Solo números.</span>}
+              </label>
 
-          <label className="block">
-            <span className={labelBase}>Placa <span className="text-rose-500">*</span> <span className="ml-1 normal-case font-normal text-slate-500">(3 letras + 3 números)</span></span>
-            <input name="placa" value={formData.placa} onChange={handlePlacaChange} placeholder="ABC123" maxLength="6" className={fieldBase + ' uppercase font-semibold tracking-[0.18em]'} />
-            {formData.placa && validarPlaca(formData.placa) ? <span className="mt-1 text-[11px] font-medium text-emerald-600">✓ Placa válida</span> : errores.placa ? <span className={errorText}>{errores.placa}</span> : <span className={helperText}>Se valida automáticamente.</span>}
-          </label>
+              <label className="block">
+                <span className={labelBase}>Placa <span className="text-rose-500">*</span> <span className="ml-1 normal-case font-normal text-slate-500">(3 letras + 3 números)</span></span>
+                <input name="placa" value={formData.placa} onChange={handlePlacaChange} placeholder="ABC123" maxLength="6" className={fieldBase + ' uppercase font-semibold tracking-[0.18em]'} />
+                {formData.placa && validarPlaca(formData.placa) ? <span className="mt-1 text-[11px] font-medium text-emerald-600">✓ Placa válida</span> : errores.placa ? <span className={errorText}>{errores.placa}</span> : <span className={helperText}>Se valida automáticamente.</span>}
+              </label>
 
-          <label className="block">
-            <span className={labelBase}>Destino <span className="text-rose-500">*</span></span>
-            <input name="destino" value={formData.destino} onChange={handleInputChange} placeholder="Lugar de destino" className={fieldBase} />
-            {errores.destino && <span className={errorText}>{errores.destino}</span>}
-          </label>
+              <label className="block">
+                <span className={labelBase}>Destino <span className="text-rose-500">*</span></span>
+                <input name="destino" value={formData.destino} onChange={handleInputChange} placeholder="Lugar de destino" className={fieldBase} />
+                {errores.destino && <span className={errorText}>{errores.destino}</span>}
+              </label>
 
-          <label className="block">
-            <span className={labelBase}>Responsable <span className="text-rose-500">*</span></span>
-            <input name="responsable" value={formData.responsable} onChange={handleInputChange} placeholder="Nombre del responsable" className={fieldBase} />
-            {errores.responsable && <span className={errorText}>{errores.responsable}</span>}
-          </label>
+              <label className="block">
+                <span className={labelBase}>Responsable <span className="text-rose-500">*</span></span>
+                <input name="responsable" value={formData.responsable} onChange={handleInputChange} placeholder="Nombre del responsable" className={fieldBase} />
+                {errores.responsable && <span className={errorText}>{errores.responsable}</span>}
+              </label>
 
-          <label className="block">
-            <span className={labelBase}>Asistente de Seguridad <span className="text-rose-500">*</span></span>
-            <input name="asistente" value={formData.asistente} onChange={handleInputChange} placeholder="Nombre del asistente" className={fieldBase} />
-            {errores.asistente && <span className={errorText}>{errores.asistente}</span>}
-          </label>
+              <label className="block">
+                <span className={labelBase}>Asistente de Seguridad <span className="text-rose-500">*</span></span>
+                <input name="asistente" value={formData.asistente} onChange={handleInputChange} placeholder="Nombre del asistente" className={fieldBase} />
+                {errores.asistente && <span className={errorText}>{errores.asistente}</span>}
+              </label>
 
-          <label className="block sm:col-span-2">
-            <span className={labelBase}>Observaciones <span className="normal-case font-normal text-slate-500">(Opcional)</span></span>
-            <textarea name="observaciones" value={formData.observaciones} onChange={handleInputChange} placeholder="Ingrese observaciones adicionales..." rows="4" className={fieldBase + ' h-auto py-3'} />
-          </label>
-        </div>
-
-        <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
-          <div className="mb-3">
-            <span className={labelBase}>Evidencias <span className="normal-case font-normal text-slate-500">(Opcional - solo JPG/PNG)</span></span>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label htmlFor="camara" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent bg-gradient-to-r from-orange-500 to-rose-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:opacity-95">
-              <span>📷</span>
-              Tomar Foto
-            </label>
-            <input id="camara" type="file" accept="image/jpeg,image/png" capture="environment" multiple onChange={handleImagenesChange} className="hidden" />
-
-            <label htmlFor="archivos" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
-              <span>🖼️</span>
-              Seleccionar Archivos
-            </label>
-            <input id="archivos" type="file" accept="image/jpeg,image/png" multiple onChange={handleImagenesChange} className="hidden" />
-          </div>
-
-          {previews.length > 0 && (
-            <div className="mt-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">Imágenes adjuntas ({previews.length})</p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                {previews.map((p, i) => (
-                  <div key={i} className="relative overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                    <button type="button" onClick={() => eliminarImagen(i)} className="absolute right-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-700 shadow">
-                      ✕
-                    </button>
-                    <img src={p.url} alt={p.name} className="h-28 w-full object-cover" />
-                    <div className="border-t border-slate-100 px-2 py-1">
-                      <span className="block truncate text-[11px] text-slate-600">{p.name}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <label className="block sm:col-span-2">
+                <span className={labelBase}>Observaciones <span className="normal-case font-normal text-slate-500">(Opcional)</span></span>
+                <textarea name="observaciones" value={formData.observaciones} onChange={handleInputChange} placeholder="Ingrese observaciones adicionales..." rows="4" className={fieldBase + ' h-auto py-3'} />
+              </label>
             </div>
-          )}
+
+            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+              <div className="mb-3">
+                <span className={labelBase}>Evidencias <span className="normal-case font-normal text-slate-500">(Opcional - solo JPG/PNG)</span></span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label htmlFor="camara" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent bg-gradient-to-r from-orange-500 to-rose-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:opacity-95">
+                  <span>📷</span>
+                  Tomar Foto
+                </label>
+                <input id="camara" type="file" accept="image/jpeg,image/png" capture="environment" multiple onChange={handleImagenesChange} className="hidden" />
+
+                <label htmlFor="archivos" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
+                  <span>🖼️</span>
+                  Seleccionar Archivos
+                </label>
+                <input id="archivos" type="file" accept="image/jpeg,image/png" multiple onChange={handleImagenesChange} className="hidden" />
+              </div>
+
+              {previews.length > 0 && (
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">Imágenes adjuntas ({previews.length})</p>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                    {previews.map((p, i) => (
+                      <div key={i} className="relative overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <button type="button" onClick={() => eliminarImagen(i)} className="absolute right-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-700 shadow">
+                          ✕
+                        </button>
+                        <img src={p.url} alt={p.name} className="h-28 w-full object-cover" />
+                        <div className="border-t border-slate-100 px-2 py-1">
+                          <span className="block truncate text-[11px] text-slate-600">{p.name}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
+            <label className="block">
+              <span className={labelBase}>Placa del vehículo <span className="text-rose-500">*</span> <span className="ml-1 normal-case font-normal text-slate-500">(3 letras + 3 números)</span></span>
+              <input name="placa" value={formData.placa} onChange={handlePlacaChange} placeholder="ABC123" maxLength="6" className={fieldBase + ' uppercase font-semibold tracking-[0.18em]'} />
+              {formData.placa && validarPlaca(formData.placa) ? <span className="mt-1 text-[11px] font-medium text-emerald-600">✓ Placa válida</span> : errores.placa ? <span className={errorText}>{errores.placa}</span> : <span className={helperText}>Ingresa la placa para cerrar la operación activa.</span>}
+            </label>
+
+            <label className="block sm:col-span-2">
+              <span className={labelBase}>Novedad de cierre <span className="normal-case font-normal text-slate-500">(Opcional)</span></span>
+              <textarea name="novedadCierre" value={novedadCierre} onChange={(e) => setNovedadCierre(e.target.value)} placeholder="Ej: terminó sin novedad" rows="4" className={fieldBase + ' h-auto py-3'} />
+            </label>
+          </div>
+        )}
+
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-4">
