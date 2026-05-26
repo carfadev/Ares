@@ -43,7 +43,11 @@ const { title, description } = Astro.props;
       class="fixed left-1/2 top-4 z-50 w-[calc(100%-1.5rem)] max-w-5xl -translate-x-1/2 overflow-hidden rounded-full border border-white/45 bg-white/30 shadow-[0_12px_40px_rgba(15,23,42,0.18)] backdrop-blur-2xl"
       style="backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);"
     >
-      <div aria-hidden="true" class="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/70 via-white/35 to-white/15"></div>
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-0"
+        style="background: linear-gradient(to bottom, rgba(255,255,255,0.7), rgba(255,255,255,0.35), rgba(255,255,255,0.15));"
+      ></div>
       <div class="relative z-10 mx-auto flex items-center justify-between px-6 py-2.5">
         <a href="/" class="flex items-center gap-3" aria-label="Ir al inicio">
           <img src={clientConfig.logo} alt={clientConfig.appName} class="h-10 w-10 rounded-md" />
@@ -114,7 +118,7 @@ const { title, description } = Astro.props;
             link.addEventListener('click', (e) => {
               e.preventDefault();
 
-              if (href.startsWith('/operaciones')) {
+              if (href.startsWith('/operaciones') || href.startsWith('/aperturas')) {
                 window.location.href = href;
                 return;
               }
