@@ -277,7 +277,7 @@ export default function OperacionesForm() {
 
       <form onSubmit={handleSubmit} className="px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
-          <label className="block">
+          <label className="block sm:col-span-2">
             <span className={labelBase}>Tipo de Operación <span className="text-rose-500">*</span></span>
             <select name="tipoOperacion" value={formData.tipoOperacion} onChange={handleInputChange} className={`${fieldBase} ${operationTheme.accentSoft} ring-1 ring-inset`}>
               <option value="">Seleccione una opción</option>
@@ -289,7 +289,7 @@ export default function OperacionesForm() {
           </label>
 
         {!esHoraFinal ? (
-          <>
+          <div className="sm:col-span-2 space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
               <label className="block">
                 <span className={labelBase}>Sede <span className="text-rose-500">*</span></span>
@@ -363,7 +363,7 @@ export default function OperacionesForm() {
               </label>
             </div>
 
-            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
               <div className="mb-3">
                 <span className={labelBase}>Evidencias <span className="normal-case font-normal text-slate-500">(Opcional - solo JPG/PNG)</span></span>
               </div>
@@ -401,9 +401,9 @@ export default function OperacionesForm() {
                 </div>
               )}
             </div>
-          </>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
+          <div className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
             <label className="block">
               <span className={labelBase}>Placa del vehículo <span className="text-rose-500">*</span> <span className="ml-1 normal-case font-normal text-slate-500">(3 letras + 3 números)</span></span>
               <input name="placa" value={formData.placa} onChange={handlePlacaChange} placeholder="ABC123" maxLength="6" className={fieldBase + ' uppercase font-semibold tracking-[0.18em]'} />
