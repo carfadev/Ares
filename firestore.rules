@@ -5,6 +5,7 @@ service cloud.firestore {
     match /cargues_descargues/{document} {
       allow create: if true;
       allow read: if true;
+      allow update: if true;
     }
   }
 }
