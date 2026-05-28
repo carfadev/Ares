@@ -5,6 +5,7 @@ interface Props {
 }
 
 import { clientConfig } from '../../client.config';
+import ToastBridge from '../islands/ToastBridge.jsx';
 
 const { title, description } = Astro.props;
 ---
@@ -63,6 +64,7 @@ const { title, description } = Astro.props;
         </nav>
       </div>
     </header>
+    <ToastBridge client:load />
     <slot />
     <script type="module">
       // SPA Navigation with view transitions

@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { getSedes, getBodegasBySede } from '../data/sedes';
 import Lottie from 'lottie-react';
 import forkliftAnimation from '../assets/lotties/Forklift.json';
 import truckAnimation from '../assets/lotties/truck.json';
 import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { notifyError, notifySuccess } from '../lib/toast';
 
 const operationThemes = {
   CARGUE: {
@@ -67,11 +68,20 @@ const operationThemes = {
 
 export default function OperacionesForm() {
   const [formData, setFormData] = useState({
-    tipoOperacion: '', sede: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: ''
+    tipoOperacion: '', sede: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: '', traeNovedad: false, tipoNovedad: ''
   });
+  const [lastCheckedPlaca, setLastCheckedPlaca] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [operacionDetectada, setOperacionDetectada] = useState(null);
+  const [modoCierre, setModoCierre] = useState(false);
+  const [operacionCierre, setOperacionCierre] = useState(null);
   const [isClient, setIsClient] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [novedadCierre, setNovedadCierre] = useState('');
+  const cierreSectionRef = useRef(null);
+  
+  const [erroresCierre, setErroresCierre] = useState({});
+  const [textoEdicion, setTextoEdicion] = useState('');
+  const [originalObservaciones, setOriginalObservaciones] = useState(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -106,6 +116,38 @@ export default function OperacionesForm() {
       setErrores(prev => ({ ...prev, placa: '' }));
     }
     setFormData(prev => ({ ...prev, placa: value }));
+    // Si la placa es completa y valida, detectar operación activa y ofrecer confirmar cierre
+    if (value.length === 6 && validarPlaca(value) && value !== lastCheckedPlaca) {
+      setLastCheckedPlaca(value);
+      (async () => {
+        try {
+          setGuardando(true);
+          const consulta = query(collection(db, 'cargues_descargues'), where('placa', '==', value));
+          const snap = await getDocs(consulta);
+
+          const activos = snap.docs
+            .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+            .filter((item) => item.estado !== 'FINALIZADO' && !item.salidaRegistrada);
+
+          if (activos.length) {
+            // Mostrar modal para confirmar cierre de la operación activa más reciente
+            const operacionActiva = activos.sort((a, b) => {
+              const aMs = obtenerMilisegundosEntrada(a);
+              const bMs = obtenerMilisegundosEntrada(b);
+              return (Number.isNaN(bMs) ? 0 : bMs) - (Number.isNaN(aMs) ? 0 : aMs);
+            })[0];
+            // Sólo mantener cliente y placa en la operación detectada (mostrar cliente en modal)
+            setOperacionDetectada(operacionActiva);
+            setShowConfirmModal(true);
+          }
+        } catch (err) {
+          console.error('Error detectando operación por placa', err);
+          notifyError(err?.message || 'Error comprobando la placa.');
+        } finally {
+          setGuardando(false);
+        }
+      })();
+    }
   };
 
   const handleInputChange = (e) => {
@@ -134,7 +176,11 @@ export default function OperacionesForm() {
 
   const validarFormulario = () => {
     const nErr = {};
-    if (!formData.tipoOperacion) {
+    if (formData.traeNovedad && !formData.tipoNovedad) nErr.tipoNovedad = 'Requerido';
+    if (modoCierre) {
+      if (!imagenes.length) nErr.evidencia = 'Debes adjuntar una evidencia de cierre.';
+      setErrores(nErr);
+    } else if (!formData.tipoOperacion) {
       nErr.tipoOperacion = 'Requerido';
     } else if (esHoraFinal) {
       if (!formData.placa || !validarPlaca(formData.placa)) nErr.placa = 'Placa inválida';
@@ -146,18 +192,27 @@ export default function OperacionesForm() {
       if (!formData.numeroCC || !/^[0-9]+$/.test(formData.numeroCC)) nErr.numeroCC = 'Número inválido';
       if (!formData.placa || !validarPlaca(formData.placa)) nErr.placa = 'Placa inválida';
     }
-    setErrores(nErr);
+    if (!modoCierre) setErrores(nErr);
     return Object.keys(nErr).length === 0;
   };
 
   const resetear = () => {
     setFormData({ tipoOperacion: '', sede: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: '' });
     setImagenes([]); setPreviews([]); setErrores({});
-    setNovedadCierre('');
+    setModoCierre(false);
+    setOperacionCierre(null);
+    setShowConfirmModal(false);
+    setOperacionDetectada(null);
+    setErroresCierre({});
+    setLastCheckedPlaca('');
+    setTextoEdicion('');
+    setOriginalObservaciones(null);
     const cam = document.getElementById('camara'); const arc = document.getElementById('archivos'); if (cam) cam.value=''; if (arc) arc.value='';
   };
 
-  const cerrarOperacionPorPlaca = async (placa) => {
+  // Se usan las mismas funciones `handleImagenesChange` / `eliminarImagen` para evidencias.
+
+  const cerrarOperacionPorPlaca = async (placa, cierreExtra = {}) => {
     const consulta = query(collection(db, 'cargues_descargues'), where('placa', '==', placa));
     const snap = await getDocs(consulta);
 
@@ -187,21 +242,59 @@ export default function OperacionesForm() {
       horaSalidaISO: salida.toISOString(),
       horaSalidaTexto: fechaBogotaTexto(salida),
       duracionMinutos,
-      novedadCierre: novedadCierre.trim() || 'SIN NOVEDAD',
+      ...cierreExtra,
       finishedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+    });
+    return { placa: operacionActiva.placa, duracionMinutos };
+  };
+
+  const handleConfirmCerrar = async () => {
+    if (!operacionDetectada) return;
+    setShowConfirmModal(false);
+    setModoCierre(true);
+    setOperacionCierre(operacionDetectada);
+    setFormData({
+      tipoOperacion: operacionDetectada.tipoOperacion || '',
+      sede: operacionDetectada.sede || '',
+      bodega: operacionDetectada.bodega || '',
+      cliente: operacionDetectada.cliente || '',
+      muelle: operacionDetectada.muelle || '',
+      conductor: operacionDetectada.conductor || '',
+      numeroCC: operacionDetectada.numeroCC || '',
+      placa: operacionDetectada.placa || '',
+      destino: operacionDetectada.destino || '',
+      responsable: operacionDetectada.responsable || '',
+      asistente: operacionDetectada.asistente || '',
+      observaciones: operacionDetectada.observaciones || '',
+    });
+    setErroresCierre({});
+    // Guardar la observación original para mostrarla como referencia y dejar el textarea vacío para la observación de cierre
+    setOriginalObservaciones(operacionDetectada.observaciones || formData.observaciones || '');
+    setTextoEdicion('');
+    requestAnimationFrame(() => {
+      cierreSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const obs = cierreSectionRef.current?.querySelector('textarea');
+      if (obs && typeof obs.focus === 'function') obs.focus();
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validarFormulario()) { alert('Corrija los errores'); return; }
+    if (!validarFormulario()) { notifyError('Corrija los errores'); return; }
     setGuardando(true);
 
     try {
-      if (esHoraFinal) {
-        await cerrarOperacionPorPlaca(formData.placa);
-        alert(`Hora final registrada para ${formData.placa}.`);
+      if (modoCierre) {
+        const cierreExtra = {
+          observaciones: originalObservaciones || null,
+          observacionesCierre: textoEdicion?.trim() || null,
+          evidencias: imagenes.map(f => ({ name: f.name, size: f.size, type: f.type })),
+          novedad: formData.traeNovedad ? { tipo: formData.tipoNovedad, detalle: textoEdicion?.trim() || null, fecha: fechaBogotaTexto(new Date()) } : null,
+          fechaCierreTexto: fechaBogotaTexto(new Date()),
+        };
+        const resultado = await cerrarOperacionPorPlaca(operacionCierre?.placa || formData.placa, cierreExtra);
+        notifySuccess(`Cierre registrado para ${resultado.placa}. Duración: ${resultado.duracionMinutos ?? 'N/A'} minutos.`);
       } else {
         const ahora = new Date();
         const registro = {
@@ -215,20 +308,22 @@ export default function OperacionesForm() {
           horaSalidaTexto: null,
           duracionMinutos: null,
           novedadCierre: null,
+          novedad: formData.traeNovedad ? { tipo: formData.tipoNovedad, detalle: formData.observaciones?.trim() || null, fecha: fechaBogotaTexto(ahora) } : null,
           horaInicio: ahora.toISOString(),
           evidencias: imagenes.map(f=>({ name: f.name, size: f.size, type: f.type })),
+          observaciones: textoEdicion?.trim() || null,
           fechaCreacion: fechaBogotaTexto(ahora),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
 
         await addDoc(collection(db, 'cargues_descargues'), registro);
-        alert('Registro guardado en Firestore');
+        notifySuccess('Registro guardado en Firestore');
       }
       resetear();
     } catch (error) {
       console.error('Error guardando en Firestore', error);
-      alert(error?.code === 'permission-denied'
+      notifyError(error?.code === 'permission-denied'
         ? 'Firestore bloqueó la escritura. Tus reglas actuales no permiten guardar sin autenticación.'
         : error?.message || 'No se pudo guardar el registro en Firestore.');
     } finally {
@@ -242,7 +337,7 @@ export default function OperacionesForm() {
   const errorText = 'mt-1 text-[11px] font-medium text-rose-600';
   const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2';
   const operationTheme = operationThemes[formData.tipoOperacion] || operationThemes.DEFAULT;
-  const submitLabel = esHoraFinal ? 'REGISTRAR HORA FINAL' : formData.tipoOperacion === 'DESCARGUE' ? 'REGISTRAR DESCARGUE' : formData.tipoOperacion === 'CARGUE' ? 'REGISTRAR CARGUE' : 'REGISTRAR OPERACIÓN';
+  const submitLabel = modoCierre ? 'FINALIZAR OPERACIÓN' : esHoraFinal ? 'REGISTRAR HORA FINAL' : formData.tipoOperacion === 'DESCARGUE' ? 'REGISTRAR DESCARGUE' : formData.tipoOperacion === 'CARGUE' ? 'REGISTRAR CARGUE' : 'REGISTRAR OPERACIÓN';
 
   return (
     <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/70">
@@ -276,19 +371,24 @@ export default function OperacionesForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
+        <fieldset disabled={modoCierre} className={modoCierre ? 'opacity-80' : ''}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
+          <label className="block sm:col-span-2">
+            <span className={labelBase}>Placa <span className="text-rose-500">*</span> <span className="ml-1 normal-case font-normal text-slate-500">(3 letras + 3 números)</span></span>
+            <input name="placa" value={formData.placa} onChange={handlePlacaChange} placeholder="ABC123" maxLength="6" className={fieldBase + ' uppercase font-semibold tracking-[0.18em]'} />
+            {formData.placa && validarPlaca(formData.placa) ? <span className="mt-1 text-[11px] font-medium text-emerald-600">✓ Placa válida</span> : errores.placa ? <span className={errorText}>{errores.placa}</span> : <span className={helperText}>Se valida automáticamente.</span>}
+          </label>
+
           <label className="block sm:col-span-2">
             <span className={labelBase}>Tipo de Operación <span className="text-rose-500">*</span></span>
             <select name="tipoOperacion" value={formData.tipoOperacion} onChange={handleInputChange} className={`${fieldBase} ${operationTheme.accentSoft} ring-1 ring-inset`}>
               <option value="">Seleccione una opción</option>
               <option value="CARGUE">CARGUE</option>
               <option value="DESCARGUE">DESCARGUE</option>
-              <option value="HORA_FINAL">HORA FINAL</option>
             </select>
-            {errores.tipoOperacion ? <span className={errorText}>{errores.tipoOperacion}</span> : <span className={helperText}>{esHoraFinal ? 'Cierre una operación activa por placa.' : 'Seleccione el tipo de operación.'}</span>}
+            {errores.tipoOperacion ? <span className={errorText}>{errores.tipoOperacion}</span> : <span className={helperText}>Seleccione el tipo de operación.</span>}
           </label>
 
-        {!esHoraFinal ? (
           <div className="sm:col-span-2 space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
               <label className="block">
@@ -333,11 +433,7 @@ export default function OperacionesForm() {
                 {errores.numeroCC ? <span className={errorText}>{errores.numeroCC}</span> : <span className={helperText}>Solo números.</span>}
               </label>
 
-              <label className="block">
-                <span className={labelBase}>Placa <span className="text-rose-500">*</span> <span className="ml-1 normal-case font-normal text-slate-500">(3 letras + 3 números)</span></span>
-                <input name="placa" value={formData.placa} onChange={handlePlacaChange} placeholder="ABC123" maxLength="6" className={fieldBase + ' uppercase font-semibold tracking-[0.18em]'} />
-                {formData.placa && validarPlaca(formData.placa) ? <span className="mt-1 text-[11px] font-medium text-emerald-600">✓ Placa válida</span> : errores.placa ? <span className={errorText}>{errores.placa}</span> : <span className={helperText}>Se valida automáticamente.</span>}
-              </label>
+              {/* Placa ya está arriba (placa-first). */}
 
               <label className="block">
                 <span className={labelBase}>Destino <span className="text-rose-500">*</span></span>
@@ -357,19 +453,57 @@ export default function OperacionesForm() {
                 {errores.asistente && <span className={errorText}>{errores.asistente}</span>}
               </label>
 
-              <label className="block sm:col-span-2">
-                <span className={labelBase}>Observaciones <span className="normal-case font-normal text-slate-500">(Opcional)</span></span>
-                <textarea name="observaciones" value={formData.observaciones} onChange={handleInputChange} placeholder="Ingrese observaciones adicionales..." rows="4" className={fieldBase + ' h-auto py-3'} />
-              </label>
+              {/* Observaciones movido fuera del fieldset para reutilizarlo en modo cierre */}
             </div>
+            
+          </div>
+        </div>
+        </fieldset>
+        <div ref={cierreSectionRef} className="mt-6">
+          {modoCierre && operacionCierre ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5 mb-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Cierre de operación</p>
+              <p className="mt-1 text-sm text-slate-700">Cliente: <span className="font-semibold text-slate-900">{formData.cliente || 'Sin dato'}</span> · Placa: <span className="font-semibold text-slate-900">{formData.placa}</span></p>
+            </div>
+          ) : null}
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+            <div className="mb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <input id="traeNovedad" type="checkbox" checked={!!formData.traeNovedad} onChange={(e) => setFormData(prev => ({ ...prev, traeNovedad: e.target.checked }))} className="h-4 w-4" />
+                  <label htmlFor="traeNovedad" className={labelBase + ' normal-case'}>Trae novedad</label>
+                </div>
+                {formData.traeNovedad ? (
+                  <select name="tipoNovedad" value={formData.tipoNovedad || ''} onChange={handleInputChange} className={fieldBase + ' w-40'}>
+                    <option value="">Tipo de novedad</option>
+                    <option value="INCUMPLIMIENTO">Incumplimiento</option>
+                    <option value="DANOS">Daños</option>
+                    <option value="DOCUMENTO">Documento</option>
+                    <option value="OTRO">Otro</option>
+                  </select>
+                ) : null}
+              </div>
+              {errores.tipoNovedad ? <p className={errorText}>{errores.tipoNovedad}</p> : null}
+              <div className="mt-3">
+                <span className={labelBase}>Observaciones <span className="normal-case font-normal text-slate-500">{modoCierre ? '(Usar para observaciones de cierre)' : '(Opcional)'}</span></span>
+              </div>
+            </div>
+            {modoCierre && originalObservaciones ? (
+              <div className="mb-3 rounded-md border border-slate-100 bg-white p-3 text-sm text-slate-700">
+                <p className="font-semibold text-xs text-slate-500">Observaciones iniciales</p>
+                <p className="whitespace-pre-wrap mt-1 text-sm">{originalObservaciones}</p>
+              </div>
+            ) : null}
+            <textarea name="observaciones" value={textoEdicion} onChange={(e) => setTextoEdicion(e.target.value)} placeholder={modoCierre ? 'Ingrese observaciones de cierre o detalle de la novedad...' : 'Ingrese observaciones adicionales...'} rows="4" className={fieldBase + ' h-auto py-3'} />
+
+            <div className="mt-4">
               <div className="mb-3">
-                <span className={labelBase}>Evidencias <span className="normal-case font-normal text-slate-500">(Opcional - solo JPG/PNG)</span></span>
+                <span className={labelBase}>Evidencias <span className="normal-case font-normal text-slate-500">{modoCierre ? '(Obligatorio en cierre - JPG/PNG)' : '(Opcional - solo JPG/PNG)'}</span></span>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label htmlFor="camara" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent bg-gradient-to-r from-orange-500 to-rose-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:opacity-95">
+                <label htmlFor="camara" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent bg-linear-to-r from-orange-500 to-rose-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:opacity-95">
                   <span>📷</span>
                   Tomar Foto
                 </label>
@@ -400,24 +534,25 @@ export default function OperacionesForm() {
                   </div>
                 </div>
               )}
+
+              {errores.evidencia ? <p className={errorText}>{errores.evidencia}</p> : null}
             </div>
           </div>
-        ) : (
-          <div className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
-            <label className="block">
-              <span className={labelBase}>Placa del vehículo <span className="text-rose-500">*</span> <span className="ml-1 normal-case font-normal text-slate-500">(3 letras + 3 números)</span></span>
-              <input name="placa" value={formData.placa} onChange={handlePlacaChange} placeholder="ABC123" maxLength="6" className={fieldBase + ' uppercase font-semibold tracking-[0.18em]'} />
-              {formData.placa && validarPlaca(formData.placa) ? <span className="mt-1 text-[11px] font-medium text-emerald-600">✓ Placa válida</span> : errores.placa ? <span className={errorText}>{errores.placa}</span> : <span className={helperText}>Ingresa la placa para cerrar la operación activa.</span>}
-            </label>
-
-            <label className="block sm:col-span-2">
-              <span className={labelBase}>Novedad de cierre <span className="normal-case font-normal text-slate-500">(Opcional)</span></span>
-              <textarea name="novedadCierre" value={novedadCierre} onChange={(e) => setNovedadCierre(e.target.value)} placeholder="Ej: terminó sin novedad" rows="4" className={fieldBase + ' h-auto py-3'} />
-            </label>
-          </div>
-        )}
-
         </div>
+
+        {showConfirmModal && operacionDetectada ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="mx-4 max-w-md rounded-2xl bg-white p-6 shadow-lg">
+              <h3 className="text-lg font-semibold">Confirmar cierre</h3>
+              <p className="mt-2 text-sm text-slate-700">¿Desea finalizar la operación del vehículo <strong>{operacionDetectada.placa}</strong>?</p>
+              {operacionDetectada.horaEntradaTexto ? <p className="mt-1 text-xs text-slate-500">Inicio: {operacionDetectada.horaEntradaTexto}</p> : null}
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={() => { setShowConfirmModal(false); setOperacionDetectada(null); }} className={`${actionBase} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200`}>Cancelar</button>
+                <button type="button" onClick={handleConfirmCerrar} disabled={guardando} className={`${actionBase} ${operationTheme.button} text-white`}>{guardando ? 'PROCESANDO...' : 'Continuar'}</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-4">
           <button type="submit" disabled={guardando} className={`${actionBase} ${operationTheme.button} text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60`}>

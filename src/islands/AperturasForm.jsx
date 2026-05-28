@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { notifyError, notifySuccess } from '../lib/toast';
 
 const openingThemes = {
   REJA: {
@@ -167,7 +168,7 @@ export default function AperturasForm() {
     e.preventDefault();
 
     if (!validarFormulario()) {
-      alert('Corrija los errores del formulario');
+      notifyError('Corrija los errores del formulario');
       return;
     }
 
@@ -190,11 +191,11 @@ export default function AperturasForm() {
 
     try {
       await addDoc(collection(db, 'aperturas_seguridad'), registro);
-      alert('Apertura guardada en Firestore');
+      notifySuccess('Apertura guardada en Firestore');
       resetear();
     } catch (error) {
       console.error('Error guardando apertura en Firestore', error);
-      alert(error?.code === 'permission-denied'
+      notifyError(error?.code === 'permission-denied'
         ? 'Firestore bloqueó la escritura. Tus reglas actuales no permiten guardar sin autenticación.'
         : 'No se pudo guardar la apertura en Firestore.');
     } finally {
