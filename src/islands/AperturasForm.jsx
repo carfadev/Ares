@@ -278,10 +278,10 @@ export default function AperturasForm() {
             </label>
             <input id="evidencia-camara" type="file" accept="image/jpeg,image/png" capture="environment" multiple onChange={handleImagenesChange} className="hidden" />
 
-            <label htmlFor="evidencia-archivos" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
+            {/* <label htmlFor="evidencia-archivos" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
               <span>🖼️</span>
               Seleccionar Archivos
-            </label>
+            </label> */}
             <input id="evidencia-archivos" type="file" accept="image/jpeg,image/png" multiple onChange={handleImagenesChange} className="hidden" />
           </div>
 

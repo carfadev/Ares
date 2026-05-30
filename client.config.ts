@@ -3,8 +3,8 @@ export const clientConfig = {
   headerName: 'AresAA',
   logo: '/images/logo2.webp',
   colors: {
-    primario: '#F05C40',
-    secundario: '#2973B3',
+    primario: '#F97E05',
+    secundario: '#0C3C6B',
     neutroClaro: '#F6F6F6', 
     neutroOscuro: '#171717'
   },
