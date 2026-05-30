@@ -177,10 +177,9 @@ export default function OperacionesForm() {
   const validarFormulario = () => {
     const nErr = {};
     if (formData.traeNovedad && !formData.tipoNovedad) nErr.tipoNovedad = 'Requerido';
-    if (modoCierre) {
-      if (!imagenes.length) nErr.evidencia = 'Debes adjuntar una evidencia de cierre.';
-      setErrores(nErr);
-    } else if (!formData.tipoOperacion) {
+    // Evidencia fotográfica obligatoria para cualquier tipo de envío
+    if (!imagenes.length) nErr.evidencia = modoCierre ? 'Debes adjuntar una evidencia de cierre.' : 'Debes adjuntar al menos una evidencia fotográfica.';
+    if (!formData.tipoOperacion) {
       nErr.tipoOperacion = 'Requerido';
     } else if (esHoraFinal) {
       if (!formData.placa || !validarPlaca(formData.placa)) nErr.placa = 'Placa inválida';
@@ -192,7 +191,7 @@ export default function OperacionesForm() {
       if (!formData.numeroCC || !/^[0-9]+$/.test(formData.numeroCC)) nErr.numeroCC = 'Número inválido';
       if (!formData.placa || !validarPlaca(formData.placa)) nErr.placa = 'Placa inválida';
     }
-    if (!modoCierre) setErrores(nErr);
+    setErrores(nErr);
     return Object.keys(nErr).length === 0;
   };
 
@@ -338,6 +337,7 @@ export default function OperacionesForm() {
   const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2';
   const operationTheme = operationThemes[formData.tipoOperacion] || operationThemes.DEFAULT;
   const submitLabel = modoCierre ? 'FINALIZAR OPERACIÓN' : esHoraFinal ? 'REGISTRAR HORA FINAL' : formData.tipoOperacion === 'DESCARGUE' ? 'REGISTRAR DESCARGUE' : formData.tipoOperacion === 'CARGUE' ? 'REGISTRAR CARGUE' : 'REGISTRAR OPERACIÓN';
+  const submitDisabled = guardando || imagenes.length === 0;
 
   return (
     <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/70">
@@ -475,13 +475,18 @@ export default function OperacionesForm() {
                   <label htmlFor="traeNovedad" className={labelBase + ' normal-case'}>Trae novedad</label>
                 </div>
                 {formData.traeNovedad ? (
-                  <select name="tipoNovedad" value={formData.tipoNovedad || ''} onChange={handleInputChange} className={fieldBase + ' w-40'}>
-                    <option value="">Tipo de novedad</option>
-                    <option value="INCUMPLIMIENTO">Incumplimiento</option>
-                    <option value="DANOS">Daños</option>
-                    <option value="DOCUMENTO">Documento</option>
-                    <option value="OTRO">Otro</option>
-                  </select>
+                  <div className="relative w-52 sm:w-64">
+                    <select name="tipoNovedad" value={formData.tipoNovedad || ''} onChange={handleInputChange} className={fieldBase + ' w-full appearance-none pr-10'}>
+                      <option value="">Tipo de novedad</option>
+                      <option value="DEVOLUCION">Devolución</option>
+                      <option value="AVERIA">Avería</option>
+                      <option value="DIFERENCIA DE PESO">Diferencia  de Peso</option>
+                      <option value="OTRO">Otro</option>
+                    </select>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" focusable="false">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </div>
                 ) : null}
               </div>
               {errores.tipoNovedad ? <p className={errorText}>{errores.tipoNovedad}</p> : null}
@@ -497,22 +502,29 @@ export default function OperacionesForm() {
             ) : null}
             <textarea name="observaciones" value={textoEdicion} onChange={(e) => setTextoEdicion(e.target.value)} placeholder={modoCierre ? 'Ingrese observaciones de cierre o detalle de la novedad...' : 'Ingrese observaciones adicionales...'} rows="4" className={fieldBase + ' h-auto py-3'} />
 
-            <div className="mt-4">
+              <div className="mt-4">
               <div className="mb-3">
-                <span className={labelBase}>Evidencias <span className="normal-case font-normal text-slate-500">{modoCierre ? '(Obligatorio en cierre - JPG/PNG)' : '(Opcional - solo JPG/PNG)'}</span></span>
+                <span className={labelBase}>Evidencias <span className="normal-case font-normal text-slate-500">{modoCierre ? '(Obligatorio)' : '(Obligatorio)'}</span></span>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label htmlFor="camara" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent bg-linear-to-r from-orange-500 to-rose-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:opacity-95">
-                  <span>📷</span>
-                  Tomar Foto
+                <label htmlFor="camara" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition shadow-sm" style={{background: 'linear-gradient(90deg, #0C3C6B 0%, #092f53 100%)'}}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera-icon lucide-camera" aria-hidden="true" focusable="false">
+                    <path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z" />
+                    <circle cx="12" cy="13" r="3" />
+                  </svg>
+                  <span className="ml-2">Registrar Evidencia</span>
                 </label>
-                <input id="camara" type="file" accept="image/jpeg,image/png" capture="environment" multiple onChange={handleImagenesChange} className="hidden" />
-
-                <label htmlFor="archivos" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
+                {/* <label htmlFor="archivos" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition shadow-sm" style={{background: 'linear-gradient(90deg, #0C3C6B 0%, #092f53 100%)'}}>
                   <span>🖼️</span>
                   Seleccionar Archivos
-                </label>
+                </label> */}
+                <input id="camara" type="file" accept="image/jpeg,image/png" capture="environment" multiple onChange={handleImagenesChange} className="hidden" />
+
+                {/* <label htmlFor="archivos" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
+                  <span>🖼️</span>
+                  Seleccionar Archivos
+                </label> */}
                 <input id="archivos" type="file" accept="image/jpeg,image/png" multiple onChange={handleImagenesChange} className="hidden" />
               </div>
 
@@ -555,7 +567,8 @@ export default function OperacionesForm() {
         ) : null}
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-4">
-          <button type="submit" disabled={guardando} className={`${actionBase} ${operationTheme.button} text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60`}>
+          {imagenes.length === 0 ? <p className="mt-1 text-[11px] font-medium text-red-600 sm:order-first sm:mb-2">Debes adjuntar al menos una imagen para poder enviar el reporte.</p> : null}
+          <button type="submit" disabled={submitDisabled} className={`${actionBase} h-12 text-white shadow-md disabled:cursor-not-allowed disabled:opacity-60`} style={{background: 'linear-gradient(90deg, #f99705 0%, #F57A03 100%)', boxShadow: '0 10px 30px rgba(249,126,5,0.12)'}}>
             {guardando ? 'GUARDANDO...' : submitLabel}
           </button>
           <button type="button" onClick={resetear} className={`${actionBase} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200`}>

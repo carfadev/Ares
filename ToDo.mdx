@@ -2,4 +2,60 @@
 
 []. hacer que esa novedad del cierre se guarde además como documento en la colección de novedades para que el dashboard la lea de forma directa.
 
-[]
+# Modulo de Operaciones - Checklist de seguridad y orden
+
+## Fase 1 - Seguridad base obligatoria
+
+- [] Activar autenticacion obligatoria en toda la aplicacion.
+- [] Bloquear por defecto la escritura y lectura directa en Firestore.
+- [] Definir reglas por rol para operaciones: operador, supervisor y administrador.
+- [] Guardar `createdBy`, `updatedBy`, `closedBy` y `role` en cada documento.
+- [] Validar en reglas que solo el creador o un rol autorizado pueda cerrar o editar una operacion.
+- [] Evitar que un usuario anonimo pueda leer toda la coleccion `cargues_descargues`.
+- [] Activar App Check para reducir abuso desde clientes no confiables.
+
+## Fase 2 - Evidencias y archivos
+
+- [] Subir las evidencias fotograficas a Firebase Storage, no solo guardar nombre y tipo.
+- [] Guardar en Firestore la URL de descarga, ruta y metadatos basicos de cada evidencia.
+- [] Restringir Storage para que solo usuarios autenticados puedan subir evidencias.
+- [] Validar tamano y tipo de archivo en cliente y en reglas/funcion servidor.
+- [] Evitar que un cierre quede guardado sin evidencia cuando la operacion la exige.
+
+## Fase 3 - Cierre de operacion
+
+- [] Mover el cierre sensible a una Cloud Function o endpoint servidor para evitar manipulacion desde el cliente.
+- [] Validar en servidor que la placa tenga una operacion activa antes de cerrarla.
+- [] Registrar fecha, hora, usuario y duracion del cierre desde el servidor.
+- [] Evitar doble cierre de la misma operacion con una verificacion atomica.
+- [] Hacer que al cancelar el modal de cierre la placa se pueda volver a escribir sin recargar la pagina.
+
+## Fase 4 - Novedades
+
+- [] Guardar la novedad de cierre tambien como documento en la coleccion `novedades`.
+- [] Incluir en `novedades` el id de la operacion, placa, tipo, detalle, fecha, usuario y evidencia asociada.
+- [] Asegurar que el dashboard lea `novedades` directamente sin depender de la coleccion operativa.
+- [] Evitar duplicados si una novedad ya fue creada para el mismo cierre.
+
+## Fase 5 - Optimizacion de lecturas
+
+- [] Reemplazar consultas amplias por consultas mas especificas y limitadas.
+- [] Traer solo la operacion activa necesaria para la placa buscada.
+- [] Evitar leer todos los documentos de una placa cuando solo se necesita el mas reciente.
+- [] Agregar indices si las consultas futuras lo requieren.
+- [] Reducir lecturas en la deteccion de cierre para no consultar mas de una vez por placa.
+
+## Fase 6 - Integridad y auditoria
+
+- [] Validar esquema de campos obligatorios en el servidor.
+- [] Evitar que el cliente pueda editar campos historicos como `horaEntradaISO` o `createdAt`.
+- [] Registrar cambios criticos en una coleccion de auditoria.
+- [] Mantener trazabilidad de quien crea, edita y cierra cada operacion.
+- [] Revisar que las reglas no permitan sobrescribir datos sensibles por accidente.
+
+## Fase 7 - Orden final del modulo
+
+- [] Separar la logica de captura, validacion, cierre y persistencia en funciones mas pequenas.
+- [] Mostrar errores claros cuando Firestore, Storage o Auth fallen.
+- [] Revisar estados de carga para evitar dobles envios.
+- [] Verificar que los campos opcionales y obligatorios esten alineados con la logica real del negocio.
