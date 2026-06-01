@@ -1,6 +1,7 @@
 // Inicialización de Firebase (modular SDK v9+)
 // Nota: instala la dependencia con `npm install firebase` antes de usar.
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -19,5 +20,6 @@ function initFirebaseApp() {
 
 const app = initFirebaseApp();
 const db = getFirestore(app);
+const auth = getAuth(app);
 
-export { app, db };
+export { app, auth, db };
