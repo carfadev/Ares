@@ -9,16 +9,17 @@ export default function LoginForm({ nextPath = '/' }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const safeNextPath = nextPath && !nextPath.startsWith('/login') ? nextPath : '/';
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        window.location.replace(nextPath);
+        window.location.replace(safeNextPath);
       }
     });
 
     return () => unsubscribe();
-  }, [nextPath]);
+  }, [safeNextPath]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -33,7 +34,7 @@ export default function LoginForm({ nextPath = '/' }) {
       setLoading(true);
       await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
       await signInWithEmailAndPassword(auth, email.trim(), password.trim());
-      window.location.replace('/');
+      window.location.replace(safeNextPath);
     } catch (err) {
       console.error('Error autenticando', err);
       setError('No se pudo iniciar sesión. Verifica tus credenciales.');

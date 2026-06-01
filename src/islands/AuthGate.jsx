@@ -11,6 +11,11 @@ export default function AuthGate({ currentPath }) {
     };
 
     const redirectToLogin = () => {
+      if (window.location.pathname === '/login') {
+        revealBody();
+        return;
+      }
+
       const nextPath = `${window.location.pathname}${window.location.search}`;
       window.location.replace(`/login?next=${encodeURIComponent(nextPath)}`);
     };
