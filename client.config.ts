@@ -1,6 +1,6 @@
 export const clientConfig = {
-  appName: 'ARES',
-  headerName: 'AresAA',
+  appName: 'ares',
+  headerName: '',
   logo: '/images/logo2.webp',
   colors: {
     primario: '#F97E05',
