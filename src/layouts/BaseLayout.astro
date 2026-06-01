@@ -2,12 +2,13 @@
 interface Props {
   title: string;
   description?: string;
+  showHeader?: boolean;
 }
 
 import { clientConfig } from '../../client.config';
 import ToastBridge from '../islands/ToastBridge.jsx';
 
-const { title, description } = Astro.props;
+const { title, description, showHeader = true } = Astro.props;
 ---
 
 <!doctype html>
@@ -38,32 +39,37 @@ const { title, description } = Astro.props;
         return 'Buenas noches';
       };
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
   <body style={`background: ${clientConfig.colors.neutroClaro}`}>
-    <header
-      class="fixed left-1/2 top-4 z-50 w-[calc(100%-1.5rem)] max-w-5xl -translate-x-1/2 overflow-hidden rounded-full border border-white/45 bg-white/30 shadow-[0_12px_40px_rgba(15,23,42,0.18)] backdrop-blur-2xl"
-      style="backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);"
-    >
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute inset-0"
-        style="background: linear-gradient(to bottom, rgba(255,255,255,0.7), rgba(255,255,255,0.35), rgba(255,255,255,0.15));"
-      ></div>
-      <div class="relative z-10 mx-auto flex items-center justify-between px-6 py-2.5">
-        <a href="/" class="flex items-center gap-3" aria-label="Ir al inicio">
-          <img src={clientConfig.logo} alt={clientConfig.appName} class="h-10 w-10 rounded-md" />
-          <p class="text-sm font-semibold tracking-wide text-slate-700">{clientConfig.appName}</p>
-        </a>
-        <nav aria-label="acciones">
-          <a class="inline-flex items-center justify-center text-slate-600 transition hover:text-slate-800" href="#" aria-label="Acceder">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-round-icon lucide-user-round">
-              <circle cx="12" cy="8" r="5" />
-              <path d="M20 21a8 8 0 0 0-16 0" />
-            </svg>
+    {showHeader && (
+      <header
+        class="fixed left-1/2 top-4 z-50 w-[calc(100%-1.5rem)] max-w-5xl -translate-x-1/2 overflow-hidden rounded-full border border-white/45 bg-white/30 shadow-[0_12px_40px_rgba(15,23,42,0.18)] backdrop-blur-2xl"
+        style="backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);"
+      >
+        <div
+          aria-hidden="true"
+          class="pointer-events-none absolute inset-0"
+          style="background: linear-gradient(to bottom, rgba(255,255,255,0.7), rgba(255,255,255,0.35), rgba(255,255,255,0.15));"
+        ></div>
+        <div class="relative z-10 mx-auto flex items-center justify-between px-6 py-2.5">
+          <a href="/" class="flex items-center gap-3" aria-label="Ir al inicio">
+            <img src={clientConfig.logo} alt={clientConfig.appName} class="h-10 w-10 rounded-md" />
+            <p class="text-sm font-semibold tracking-wide text-slate-700">{clientConfig.appName}</p>
           </a>
-        </nav>
-      </div>
-    </header>
+          <nav aria-label="acciones">
+            <a class="inline-flex items-center justify-center text-slate-600 transition hover:text-slate-800" href="#" aria-label="Acceder">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-round-icon lucide-user-round">
+                <circle cx="12" cy="8" r="5" />
+                <path d="M20 21a8 8 0 0 0-16 0" />
+              </svg>
+            </a>
+          </nav>
+        </div>
+      </header>
+    )}
     <ToastBridge client:load />
     <slot />
     <script type="module">
