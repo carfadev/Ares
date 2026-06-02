@@ -9,6 +9,7 @@ import { clientConfig } from '../../client.config';
 import ToastBridge from '../islands/ToastBridge.jsx';
 import AuthGate from '../islands/AuthGate.jsx';
 import UserMenu from '../islands/UserMenu.jsx';
+import SedeSelectionModal from '../islands/SedeSelectionModal.jsx';
 
 const { title, description, showHeader = true } = Astro.props;
 const isLoginPage = Astro.url.pathname === '/login';
@@ -69,6 +70,7 @@ const isLoginPage = Astro.url.pathname === '/login';
       </header>
     )}
     <ToastBridge client:load />
+    <SedeSelectionModal client:load />
     <slot />
     <AuthGate client:load currentPath={Astro.url.pathname} />
 

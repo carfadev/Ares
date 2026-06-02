@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { notifyError, notifySuccess } from '../lib/toast';
 
 const openingThemes = {
@@ -177,6 +177,7 @@ export default function AperturasForm() {
     const registro = {
       modulo: 'APERTURAS',
       tipoRegistro: 'APERTURA',
+      userId: auth.currentUser?.uid,
       ...formData,
       bodegaLabel: bodegaDisponible?.label || '',
       evidencias: imagenes.map((file) => ({
