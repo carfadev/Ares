@@ -57,7 +57,10 @@ export default function AuthGate({ currentPath }) {
 
     window.addEventListener('pageshow', handlePageShow);
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      window.removeEventListener('pageshow', handlePageShow);
+    };
   }, [currentPath]);
 
   return null;

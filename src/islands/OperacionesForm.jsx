@@ -3,8 +3,9 @@ import { getSedes, getBodegasBySede } from '../data/sedes';
 import Lottie from 'lottie-react';
 import forkliftAnimation from '../assets/lotties/Forklift.json';
 import truckAnimation from '../assets/lotties/truck.json';
-import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where, getDoc, onSnapshot } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { notifyError, notifySuccess } from '../lib/toast';
 
 const operationThemes = {
@@ -67,8 +68,30 @@ const operationThemes = {
 };
 
 export default function OperacionesForm() {
+  const [sedeFromFirestore, setSedeFromFirestore] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDocRef = doc(db, 'usuarios', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists() && userDoc.data().sedeSeleccionada) {
+            setSedeFromFirestore(userDoc.data().sedeSeleccionada);
+          }
+        } catch (err) {
+          console.error('Error cargando sede de Firestore', err);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const sedeSeleccionada = sedeFromFirestore;
+
   const [formData, setFormData] = useState({
-    tipoOperacion: '', sede: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: '', traeNovedad: false, tipoNovedad: ''
+    tipoOperacion: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: '', traeNovedad: false, tipoNovedad: ''
   });
   const [lastCheckedPlaca, setLastCheckedPlaca] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -87,11 +110,10 @@ export default function OperacionesForm() {
     setIsClient(true);
   }, []);
 
-  const bodegasDisponibles = useMemo(() => formData.sede ? getBodegasBySede(formData.sede) : [], [formData.sede]);
+  const bodegasDisponibles = useMemo(() => sedeSeleccionada ? getBodegasBySede(sedeSeleccionada) : [], [sedeSeleccionada]);
   const [imagenes, setImagenes] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [errores, setErrores] = useState({});
-  const sedes = getSedes();
 
   const validarPlaca = (placa) => /^[A-Z]{3}[0-9]{3}$/.test(placa);
 
@@ -122,7 +144,18 @@ export default function OperacionesForm() {
       (async () => {
         try {
           setGuardando(true);
-          const consulta = query(collection(db, 'cargues_descargues'), where('placa', '==', value));
+          
+          if (!sedeSeleccionada) {
+            setErrores(prev => ({ ...prev, placa: 'Debes seleccionar una sede primero.' }));
+            setGuardando(false);
+            return;
+          }
+
+          const consulta = query(
+            collection(db, 'cargues_descargues'),
+            where('placa', '==', value),
+            where('sede', '==', sedeSeleccionada)
+          );
           const snap = await getDocs(consulta);
 
           const activos = snap.docs
@@ -152,8 +185,7 @@ export default function OperacionesForm() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'sede') setFormData(prev => ({ ...prev, sede: value, bodega: '' }));
-    else setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: value }));
     if (errores[name]) setErrores(prev => ({ ...prev, [name]: '' }));
   };
 
@@ -184,7 +216,6 @@ export default function OperacionesForm() {
     } else if (esHoraFinal) {
       if (!formData.placa || !validarPlaca(formData.placa)) nErr.placa = 'Placa inválida';
     } else {
-      if (!formData.sede) nErr.sede = 'Requerido';
       if (!formData.bodega) nErr.bodega = 'Requerido';
       if (!formData.cliente || !formData.cliente.trim()) nErr.cliente = 'Requerido';
       if (!formData.conductor || !formData.conductor.trim()) nErr.conductor = 'Requerido';
@@ -196,7 +227,7 @@ export default function OperacionesForm() {
   };
 
   const resetear = () => {
-    setFormData({ tipoOperacion: '', sede: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: '' });
+    setFormData({ tipoOperacion: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: '' });
     setImagenes([]); setPreviews([]); setErrores({});
     setModoCierre(false);
     setOperacionCierre(null);
@@ -211,8 +242,12 @@ export default function OperacionesForm() {
 
   // Se usan las mismas funciones `handleImagenesChange` / `eliminarImagen` para evidencias.
 
-  const cerrarOperacionPorPlaca = async (placa, cierreExtra = {}) => {
-    const consulta = query(collection(db, 'cargues_descargues'), where('placa', '==', placa));
+  const cerrarOperacionPorPlaca = async (placa, cierreExtra = {}, sede = sedeSeleccionada) => {
+    const consulta = query(
+      collection(db, 'cargues_descargues'),
+      where('placa', '==', placa),
+      where('sede', '==', sede)
+    );
     const snap = await getDocs(consulta);
 
     const activos = snap.docs
@@ -297,6 +332,8 @@ export default function OperacionesForm() {
       } else {
         const ahora = new Date();
         const registro = {
+          userId: auth.currentUser?.uid,
+          sede: sedeSeleccionada,
           ...formData,
           muelle: formData.muelle ? parseInt(formData.muelle, 10) : null,
           estado: 'EN_PROCESO',
@@ -392,21 +429,12 @@ export default function OperacionesForm() {
           <div className="sm:col-span-2 space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
               <label className="block">
-                <span className={labelBase}>Sede <span className="text-rose-500">*</span></span>
-                <select name="sede" value={formData.sede} onChange={handleInputChange} className={fieldBase}>
-                  <option value="">Seleccione una sede</option>
-                  {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-                {errores.sede ? <span className={errorText}>{errores.sede}</span> : <span className={helperText}>La bodega depende de la sede.</span>}
-              </label>
-
-              <label className="block">
                 <span className={labelBase}>Bodega <span className="text-rose-500">*</span></span>
-                <select name="bodega" value={formData.bodega} onChange={handleInputChange} disabled={!formData.sede} className={fieldBase}>
-                  <option value="">{formData.sede ? 'Seleccione una bodega' : 'Primero seleccione una sede'}</option>
+                <select name="bodega" value={formData.bodega} onChange={handleInputChange} className={fieldBase}>
+                  <option value="">Seleccione una bodega</option>
                   {bodegasDisponibles.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
-                {errores.bodega ? <span className={errorText}>{errores.bodega}</span> : <span className={helperText}>Se activa cuando eliges la sede.</span>}
+                {errores.bodega ? <span className={errorText}>{errores.bodega}</span> : <span className={helperText}>Bodegas de la sede: {sedeSeleccionada}</span>}
               </label>
 
               <label className="block">

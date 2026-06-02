@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
+import { doc, getDoc, setDoc, deleteField, updateDoc } from 'firebase/firestore';
+import { getSedes } from '../data/sedes';
 
 function getInitials(user) {
   const baseText = user?.displayName || user?.email || 'U';
@@ -16,6 +18,7 @@ function getInitials(user) {
 export default function UserMenu() {
   const [user, setUser] = useState(null);
   const [open, setOpen] = useState(false);
+  const [sedeSeleccionada, setSedeSeleccionada] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -32,6 +35,16 @@ export default function UserMenu() {
 
   const handleLogout = async () => {
     try {
+      // Limpiar sede de Firestore para que pida de nuevo al reentrar
+      if (user) {
+        const userDocRef = doc(db, 'usuarios', user.uid);
+        await updateDoc(userDocRef, {
+          sedeSeleccionada: deleteField()
+        }).catch(() => {
+          // Si el documento no existe, no importa
+        });
+      }
+      
       await signOut(auth);
       window.location.replace('/login');
     } catch (error) {
