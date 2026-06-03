@@ -4,7 +4,7 @@ import Lottie from 'lottie-react';
 import forkliftAnimation from '../assets/lotties/Forklift.json';
 import truckAnimation from '../assets/lotties/truck.json';
 import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where, getDoc, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { db, auth, USER_SETTINGS_COLLECTION, LEGACY_USER_SETTINGS_COLLECTION } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { notifyError, notifySuccess } from '../lib/toast';
 
@@ -74,10 +74,18 @@ export default function OperacionesForm() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          const userDocRef = doc(db, 'usuarios', user.uid);
+          const userDocRef = doc(db, USER_SETTINGS_COLLECTION, user.uid);
+          const legacyUserDocRef = doc(db, LEGACY_USER_SETTINGS_COLLECTION, user.uid);
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists() && userDoc.data().sedeSeleccionada) {
             setSedeFromFirestore(userDoc.data().sedeSeleccionada);
+          } else {
+            const legacyUserDoc = await getDoc(legacyUserDocRef);
+            if (legacyUserDoc.exists() && legacyUserDoc.data().sedeSeleccionada) {
+              const legacyData = legacyUserDoc.data();
+              setSedeFromFirestore(legacyData.sedeSeleccionada);
+              await setDoc(userDocRef, legacyData, { merge: true });
+            }
           }
         } catch (err) {
           console.error('Error cargando sede de Firestore', err);
@@ -418,7 +426,7 @@ export default function OperacionesForm() {
 
           <label className="block sm:col-span-2">
             <span className={labelBase}>Tipo de Operación <span className="text-rose-500">*</span></span>
-            <select name="tipoOperacion" value={formData.tipoOperacion} onChange={handleInputChange} className={`${fieldBase} ${operationTheme.accentSoft} ring-1 ring-inset`}>
+            <select  name="tipoOperacion" value={formData.tipoOperacion} onChange={handleInputChange} className={`${fieldBase} ${operationTheme.accentSoft} ring-1 ring-inset`}>
               <option value="">Seleccione una opción</option>
               <option value="CARGUE">CARGUE</option>
               <option value="DESCARGUE">DESCARGUE</option>

@@ -2,7 +2,12 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Colección de usuarios - cada uno solo su documento
+    // Configuración por usuario - cada uno solo su documento
+    match /config_usuarios/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+
+    // Compatibilidad temporal con la colección antigua
     match /usuarios/{userId} {
       allow read, write: if request.auth.uid == userId;
     }

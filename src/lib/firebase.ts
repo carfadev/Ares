@@ -23,4 +23,7 @@ const app = initFirebaseApp();
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-export { app, auth, db };
+const USER_SETTINGS_COLLECTION = 'config_usuarios';
+const LEGACY_USER_SETTINGS_COLLECTION = 'usuarios';
+
+export { app, auth, db, USER_SETTINGS_COLLECTION, LEGACY_USER_SETTINGS_COLLECTION };
