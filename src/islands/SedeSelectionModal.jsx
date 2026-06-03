@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth, db, USER_SETTINGS_COLLECTION, LEGACY_USER_SETTINGS_COLLECTION } from '../lib/firebase';
 import { getSedes } from '../data/sedes';
 
 export default function SedeSelectionModal() {
@@ -17,14 +17,25 @@ export default function SedeSelectionModal() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          const userDocRef = doc(db, 'usuarios', user.uid);
+          const userDocRef = doc(db, USER_SETTINGS_COLLECTION, user.uid);
+          const legacyUserDocRef = doc(db, LEGACY_USER_SETTINGS_COLLECTION, user.uid);
           const userDoc = await getDoc(userDocRef);
 
           if (userDoc.exists() && userDoc.data().sedeSeleccionada) {
             setSedeSeleccionadaState(userDoc.data().sedeSeleccionada);
             setMostrarModal(false);
           } else {
-            setMostrarModal(true);
+            const legacyUserDoc = await getDoc(legacyUserDocRef);
+
+            if (legacyUserDoc.exists() && legacyUserDoc.data().sedeSeleccionada) {
+              const legacyData = legacyUserDoc.data();
+              setSedeSeleccionadaState(legacyData.sedeSeleccionada);
+              setMostrarModal(false);
+
+              await setDoc(userDocRef, legacyData, { merge: true });
+            } else {
+              setMostrarModal(true);
+            }
           }
         } catch (err) {
           console.error('Error cargando sede del usuario', err);
@@ -42,7 +53,7 @@ export default function SedeSelectionModal() {
       const user = auth.currentUser;
       if (!user) return;
 
-      const userDocRef = doc(db, 'usuarios', user.uid);
+      const userDocRef = doc(db, USER_SETTINGS_COLLECTION, user.uid);
       await setDoc(userDocRef, { 
         sedeSeleccionada: sede,
         updatedAt: new Date().toISOString()
@@ -70,7 +81,7 @@ export default function SedeSelectionModal() {
             <button
               key={sede}
               onClick={() => handleSelectSede(sede)}
-              className={`${actionBase} border border-slate-200 bg-white text-slate-900 text-left hover:bg-slate-50 hover:border-slate-300 focus:ring-slate-200`}
+              className={`${actionBase} border border-slate-200 bg-white text-slate-900 text-left hover:bg-slate-50 hover:border-slate-300 focus:ring-slate-200 cursor-pointer`}
             >
               {sede}
             </button>

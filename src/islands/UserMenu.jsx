@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
+import { auth, db, USER_SETTINGS_COLLECTION, LEGACY_USER_SETTINGS_COLLECTION } from '../lib/firebase';
 import { doc, getDoc, setDoc, deleteField, updateDoc } from 'firebase/firestore';
 import { getSedes } from '../data/sedes';
 
 function getInitials(user) {
-  const baseText = user?.displayName || user?.email || 'U';
+  const baseText = user?.nombre || user?.displayName || user?.email || 'U';
   const parts = baseText.trim().split(/\s+/).filter(Boolean);
 
   if (parts.length >= 2) {
@@ -19,25 +19,65 @@ export default function UserMenu() {
   const [user, setUser] = useState(null);
   const [open, setOpen] = useState(false);
   const [sedeSeleccionada, setSedeSeleccionada] = useState(null);
+  const [nombreUsuario, setNombreUsuario] = useState('');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    let active = true;
+
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!active) return;
+
       setUser(currentUser);
+
+      if (!currentUser) {
+        setNombreUsuario('');
+        return;
+      }
+
+      try {
+        const userDocRef = doc(db, USER_SETTINGS_COLLECTION, currentUser.uid);
+        const legacyUserDocRef = doc(db, LEGACY_USER_SETTINGS_COLLECTION, currentUser.uid);
+
+        const userDoc = await getDoc(userDocRef);
+        const userDocData = userDoc.exists() ? userDoc.data() : null;
+
+        if (userDocData?.nombre) {
+          setNombreUsuario(userDocData.nombre);
+          return;
+        }
+
+        const legacyUserDoc = await getDoc(legacyUserDocRef);
+        const legacyUserDocData = legacyUserDoc.exists() ? legacyUserDoc.data() : null;
+
+        if (legacyUserDocData?.nombre) {
+          setNombreUsuario(legacyUserDocData.nombre);
+          await setDoc(userDocRef, legacyUserDocData, { merge: true });
+          return;
+        }
+
+        setNombreUsuario(currentUser.displayName || currentUser.email || 'Usuario');
+      } catch (error) {
+        console.error('Error cargando nombre del usuario', error);
+        setNombreUsuario(currentUser.displayName || currentUser.email || 'Usuario');
+      }
     });
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
-  const initials = useMemo(() => getInitials(user), [user]);
-  const hasDisplayName = Boolean(user?.displayName?.trim());
-  const label = user?.displayName || user?.email || 'Usuario';
+  const initials = useMemo(() => getInitials({ ...user, nombre: nombreUsuario }), [user, nombreUsuario]);
+  const hasDisplayName = Boolean(nombreUsuario?.trim() || user?.displayName?.trim());
+  const label = nombreUsuario || user?.displayName || user?.email || 'Usuario';
   const emailLabel = user?.email || 'Sin correo asignado';
 
   const handleLogout = async () => {
     try {
       // Limpiar sede de Firestore para que pida de nuevo al reentrar
       if (user) {
-        const userDocRef = doc(db, 'usuarios', user.uid);
+        const userDocRef = doc(db, USER_SETTINGS_COLLECTION, user.uid);
         await updateDoc(userDocRef, {
           sedeSeleccionada: deleteField()
         }).catch(() => {
