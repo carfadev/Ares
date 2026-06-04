@@ -9,6 +9,7 @@ import { clientConfig } from '../../client.config';
 import ToastBridge from '../islands/ToastBridge.jsx';
 import AuthGate from '../islands/AuthGate.jsx';
 import UserMenu from '../islands/UserMenu.jsx';
+import SedeDisplay from '../islands/SedeDisplay.jsx';
 import SedeSelectionModal from '../islands/SedeSelectionModal.jsx';
 
 const { title, description, showHeader = true } = Astro.props;
@@ -63,9 +64,12 @@ const isLoginPage = Astro.url.pathname === '/login';
             <img src={clientConfig.logo} alt={clientConfig.appName} class="h-10 w-10 rounded-md" />
             <p class="text-sm font-semibold tracking-wide text-slate-700">{clientConfig.appName}</p>
           </a>
-          <nav aria-label="acciones">
-            <UserMenu client:load />
-          </nav>
+          <div class="flex items-center gap-4">
+            <SedeDisplay client:load />
+            <nav aria-label="acciones">
+              <UserMenu client:load />
+            </nav>
+          </div>
         </div>
       </header>
     )}

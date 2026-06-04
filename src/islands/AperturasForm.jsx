@@ -87,7 +87,7 @@ export default function AperturasForm() {
   const labelBase = 'block text-xs font-semibold uppercase tracking-wide text-slate-700';
   const helperText = 'mt-1 text-[11px] text-slate-500';
   const errorText = 'mt-1 text-[11px] font-medium text-rose-600';
-  const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 cursor-pointer';
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -292,7 +292,7 @@ export default function AperturasForm() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                 {previews.map((preview, index) => (
                   <div key={index} className="relative overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                    <button type="button" onClick={() => eliminarImagen(index)} className="absolute right-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-700 shadow">
+                    <button type="button" onClick={() => eliminarImagen(index)} className="absolute right-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-700 shadow cursor-pointer">
                       ✕
                     </button>
                     <img src={preview.url} alt={preview.name} className="h-28 w-full object-cover" />

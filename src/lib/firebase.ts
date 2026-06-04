@@ -23,7 +23,7 @@ const app = initFirebaseApp();
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-const USER_SETTINGS_COLLECTION = 'config_usuarios';
-const LEGACY_USER_SETTINGS_COLLECTION = 'usuarios';
+const USER_SETTINGS_COLLECTION = 'sedes_seleccion_user';
+const LEGACY_USER_SETTINGS_COLLECTION = 'config_usuarios';
 
 export { app, auth, db, USER_SETTINGS_COLLECTION, LEGACY_USER_SETTINGS_COLLECTION };

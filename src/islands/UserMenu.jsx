@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db, USER_SETTINGS_COLLECTION, LEGACY_USER_SETTINGS_COLLECTION } from '../lib/firebase';
 import { doc, getDoc, setDoc, deleteField, updateDoc } from 'firebase/firestore';
 import { getSedes } from '../data/sedes';
+
+const USUARIOS_COLLECTION = 'usuarios';
 
 function getInitials(user) {
   const baseText = user?.nombre || user?.displayName || user?.email || 'U';
@@ -20,6 +22,21 @@ export default function UserMenu() {
   const [open, setOpen] = useState(false);
   const [sedeSeleccionada, setSedeSeleccionada] = useState(null);
   const [nombreUsuario, setNombreUsuario] = useState('');
+  const menuRef = useRef(null);
+
+  // Cerrar dropdown cuando se hace clic fuera
+  useEffect(() => {
+    if (!open) return;
+
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
 
   useEffect(() => {
     let active = true;
@@ -31,34 +48,31 @@ export default function UserMenu() {
 
       if (!currentUser) {
         setNombreUsuario('');
+        setSedeSeleccionada(null);
         return;
       }
 
       try {
         const userDocRef = doc(db, USER_SETTINGS_COLLECTION, currentUser.uid);
-        const legacyUserDocRef = doc(db, LEGACY_USER_SETTINGS_COLLECTION, currentUser.uid);
+        const usuariosDocRef = doc(db, USUARIOS_COLLECTION, currentUser.uid);
 
+        // Intentar cargar nombre de la colección usuarios
+        const usuariosDoc = await getDoc(usuariosDocRef);
+        if (usuariosDoc.exists() && usuariosDoc.data()?.nombre) {
+          setNombreUsuario(usuariosDoc.data().nombre);
+        } else {
+          // Fallback al email
+          setNombreUsuario(currentUser.email || 'Usuario');
+        }
+
+        // Cargar sede seleccionada
         const userDoc = await getDoc(userDocRef);
-        const userDocData = userDoc.exists() ? userDoc.data() : null;
-
-        if (userDocData?.nombre) {
-          setNombreUsuario(userDocData.nombre);
-          return;
+        if (userDoc.exists() && userDoc.data()?.sedeSeleccionada) {
+          setSedeSeleccionada(userDoc.data().sedeSeleccionada);
         }
-
-        const legacyUserDoc = await getDoc(legacyUserDocRef);
-        const legacyUserDocData = legacyUserDoc.exists() ? legacyUserDoc.data() : null;
-
-        if (legacyUserDocData?.nombre) {
-          setNombreUsuario(legacyUserDocData.nombre);
-          await setDoc(userDocRef, legacyUserDocData, { merge: true });
-          return;
-        }
-
-        setNombreUsuario(currentUser.displayName || currentUser.email || 'Usuario');
       } catch (error) {
-        console.error('Error cargando nombre del usuario', error);
-        setNombreUsuario(currentUser.displayName || currentUser.email || 'Usuario');
+        console.error('Error cargando datos del usuario', error);
+        setNombreUsuario(currentUser.email || 'Usuario');
       }
     });
 
@@ -66,6 +80,20 @@ export default function UserMenu() {
       active = false;
       unsubscribe();
     };
+  }, []);
+
+  // Recargar sede cuando el modal la cambia
+  useEffect(() => {
+    const handleSedeChange = (event) => {
+      // Recibir sede del evento sin hacer lectura extra a Firestore
+      if (event.detail?.sede) {
+        setSedeSeleccionada(event.detail.sede);
+      }
+    };
+
+    // Escuchar cuando el modal cambia la sede
+    window.addEventListener('sede-changed', handleSedeChange);
+    return () => window.removeEventListener('sede-changed', handleSedeChange);
   }, []);
 
   const initials = useMemo(() => getInitials({ ...user, nombre: nombreUsuario }), [user, nombreUsuario]);
@@ -105,7 +133,7 @@ export default function UserMenu() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={menuRef}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -150,7 +178,7 @@ export default function UserMenu() {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+            className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm font-medium text-rose-600 transition hover:bg-rose-50 cursor-pointer"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="m16 17 5-5-5-5" />
