@@ -5,44 +5,46 @@ import { auth, db, USER_SETTINGS_COLLECTION, LEGACY_USER_SETTINGS_COLLECTION } f
 import { getSedes } from '../data/sedes';
 
 export default function SedeSelectionModal() {
-  const [mostrarModal, setMostrarModal] = useState(false);
-  const [sedeSeleccionada, setSedeSeleccionadaState] = useState(null);
+  const [mostrarModal, setMostrarModal] = useState(true); // Mostrar inmediatamente
   const [cargando, setCargando] = useState(true);
   const sedes = getSedes();
 
   // Estilos consistentes con el proyecto
-  const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 w-full';
+  const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 w-full cursor-pointer';
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        setMostrarModal(false);
+        setCargando(false);
+        return;
+      }
+
+      // Verificar sede en background sin bloquear
+      (async () => {
         try {
           const userDocRef = doc(db, USER_SETTINGS_COLLECTION, user.uid);
-          const legacyUserDocRef = doc(db, LEGACY_USER_SETTINGS_COLLECTION, user.uid);
           const userDoc = await getDoc(userDocRef);
 
           if (userDoc.exists() && userDoc.data().sedeSeleccionada) {
-            setSedeSeleccionadaState(userDoc.data().sedeSeleccionada);
             setMostrarModal(false);
           } else {
+            const legacyUserDocRef = doc(db, LEGACY_USER_SETTINGS_COLLECTION, user.uid);
             const legacyUserDoc = await getDoc(legacyUserDocRef);
 
             if (legacyUserDoc.exists() && legacyUserDoc.data().sedeSeleccionada) {
               const legacyData = legacyUserDoc.data();
-              setSedeSeleccionadaState(legacyData.sedeSeleccionada);
-              setMostrarModal(false);
-
               await setDoc(userDocRef, legacyData, { merge: true });
-            } else {
-              setMostrarModal(true);
+              setMostrarModal(false);
             }
+            // Si no tiene sede, mantener modal visible
           }
         } catch (err) {
           console.error('Error cargando sede del usuario', err);
-          setMostrarModal(true);
+          // Mantener modal visible en caso de error
         }
-      }
-      setCargando(false);
+        setCargando(false);
+      })();
     });
 
     return () => unsubscribe();
@@ -59,8 +61,11 @@ export default function SedeSelectionModal() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      setSedeSeleccionadaState(sede);
       setMostrarModal(false);
+      
+      // Disparar evento con los datos de la sede para evitar lecturas extra
+      const event = new CustomEvent('sede-changed', { detail: { sede } });
+      window.dispatchEvent(event);
     } catch (err) {
       console.error('Error guardando sede', err);
     }

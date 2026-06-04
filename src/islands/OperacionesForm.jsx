@@ -379,7 +379,7 @@ export default function OperacionesForm() {
   const labelBase = 'block text-xs font-semibold uppercase tracking-wide text-slate-700';
   const helperText = 'mt-1 text-[11px] text-slate-500';
   const errorText = 'mt-1 text-[11px] font-medium text-rose-600';
-  const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 cursor-pointer';
   const operationTheme = operationThemes[formData.tipoOperacion] || operationThemes.DEFAULT;
   const submitLabel = modoCierre ? 'FINALIZAR OPERACIÓN' : esHoraFinal ? 'REGISTRAR HORA FINAL' : formData.tipoOperacion === 'DESCARGUE' ? 'REGISTRAR DESCARGUE' : formData.tipoOperacion === 'CARGUE' ? 'REGISTRAR CARGUE' : 'REGISTRAR OPERACIÓN';
   const submitDisabled = guardando || imagenes.length === 0;
@@ -570,7 +570,7 @@ export default function OperacionesForm() {
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                     {previews.map((p, i) => (
                       <div key={i} className="relative overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                        <button type="button" onClick={() => eliminarImagen(i)} className="absolute right-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-700 shadow">
+                        <button type="button" onClick={() => eliminarImagen(i)} className="absolute right-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-700 shadow cursor-pointer">
                           ✕
                         </button>
                         <img src={p.url} alt={p.name} className="h-28 w-full object-cover" />

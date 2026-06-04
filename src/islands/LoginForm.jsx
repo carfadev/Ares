@@ -87,7 +87,7 @@ export default function LoginForm({ nextPath = '/' }) {
           <button
             type="button"
             onClick={() => setShowPassword((value) => !value)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="absolute right-4 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
             aria-label="Mostrar contraseña"
           >
             <svg aria-hidden="true" className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -117,7 +117,7 @@ export default function LoginForm({ nextPath = '/' }) {
       <button
         type="submit"
         disabled={loading}
-        className="group inline-flex w-full items-center justify-center gap-3 rounded-xl bg-[linear-gradient(180deg,#0c3c6b_0%,#092b4d_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(12,60,107,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_30px_rgba(12,60,107,0.24)] focus:outline-none focus:ring-2 focus:ring-[rgba(249,126,5,0.35)] focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-70"
+        className="group inline-flex w-full items-center justify-center gap-3 rounded-xl bg-[linear-gradient(180deg,#0c3c6b_0%,#092b4d_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(12,60,107,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_30px_rgba(12,60,107,0.24)] focus:outline-none focus:ring-2 focus:ring-[rgba(249,126,5,0.35)] focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-70 cursor-pointer"
       >
         <span>{loading ? 'Ingresando...' : 'Iniciar sesión'}</span>
         <svg aria-hidden="true" className="h-4 w-4 text-[rgb(249,126,5)] transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

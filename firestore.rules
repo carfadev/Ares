@@ -2,6 +2,11 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Selección de sedes por usuario
+    match /sedes_seleccion_user/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+
     // Configuración por usuario - cada uno solo su documento
     match /config_usuarios/{userId} {
       allow read, write: if request.auth.uid == userId;
