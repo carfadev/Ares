@@ -1,0 +1,14 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "cargues_descargues",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "placa", "order": "ASCENDING" },
+        { "fieldPath": "sede", "order": "ASCENDING" },
+        { "fieldPath": "salidaRegistrada", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
