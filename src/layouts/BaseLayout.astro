@@ -11,6 +11,7 @@ import AuthGate from '../islands/AuthGate.jsx';
 import UserMenu from '../islands/UserMenu.jsx';
 import SedeDisplay from '../islands/SedeDisplay.jsx';
 import SedeSelectionModal from '../islands/SedeSelectionModal.jsx';
+import SessionManager from '../islands/SessionManager.jsx';
 
 const { title, description, showHeader = true } = Astro.props;
 const isLoginPage = Astro.url.pathname === '/login';
@@ -73,77 +74,66 @@ const isLoginPage = Astro.url.pathname === '/login';
         </div>
       </header>
     )}
+    <SessionManager client:load />
     <ToastBridge client:load />
-    <SedeSelectionModal client:load />
-    <slot />
+    {!isLoginPage && <SedeSelectionModal client:load />}
+    <div id="main-content"><slot /></div>
     <AuthGate client:load currentPath={Astro.url.pathname} />
 
     <script is:inline>
-      // SPA Navigation with view transitions
-      const pageContent = document.body;
-
       function updateGreetingMessage() {
-        const greetingMessage = document.querySelector('[data-greeting-message]');
-
-        if (!greetingMessage) return;
-
-        greetingMessage.textContent = window.getGreetingMessage ? window.getGreetingMessage() : 'Buenos días';
+        const el = document.querySelector('[data-greeting-message]');
+        if (el && typeof window.getGreetingMessage === 'function') {
+          el.textContent = window.getGreetingMessage();
+        }
       }
-      
+
       async function loadPage(url) {
         try {
-          const response = await fetch(url);
-          const html = await response.text();
-          
-          // Parse the response to get the body content
+          const resp = await fetch(url);
+          const html = await resp.text();
           const parser = new DOMParser();
           const doc = parser.parseFromString(html, 'text/html');
-          const newContent = doc.body;
-          
-          // Fade out transition
-          pageContent.style.opacity = '0.7';
-          pageContent.style.transition = 'opacity 0.2s ease-in-out';
-          
-          // Update content
-          setTimeout(() => {
-            pageContent.innerHTML = newContent.innerHTML;
-            pageContent.style.opacity = '1';
-            
-            // Re-attach event listeners
-            attachNavigationListeners();
-            updateGreetingMessage();
-            
-            // Update page title
-            document.title = doc.title;
-            
-            // Scroll to top
-            window.scrollTo(0, 0);
-          }, 200);
-        } catch (error) {
-          console.error('Failed to load page:', error);
+          const mainContent = doc.querySelector('#main-content');
+
+          // Pre-load module scripts for new islands
+          const scripts = doc.querySelectorAll('script[type="module"]');
+          await Promise.all(
+            Array.from(scripts)
+              .filter(s => s.src && s.src.startsWith(window.location.origin))
+              .map(s => import(s.src).catch(() => {}))
+          );
+
+          const container = document.getElementById('main-content');
+          if (container && mainContent) {
+            container.innerHTML = mainContent.innerHTML;
+          }
+
+          document.title = doc.title;
+          window.scrollTo(0, 0);
+          attachNavigationListeners();
+        } catch (e) {
+          console.error('SPA navigation failed, falling back to full load', e);
           window.location.href = url;
         }
       }
-      
+
       function attachNavigationListeners() {
         document.querySelectorAll('a').forEach(link => {
           const href = link.getAttribute('href');
           if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto:')) {
             link.addEventListener('click', (e) => {
               e.preventDefault();
-
               window.history.pushState(null, '', href);
               loadPage(href);
             });
           }
         });
       }
-      
-      // Initial setup
+
       attachNavigationListeners();
       updateGreetingMessage();
-      
-      // Handle back button
+
       window.addEventListener('popstate', () => {
         loadPage(window.location.pathname);
       });

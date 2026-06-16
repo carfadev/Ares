@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db, USER_SETTINGS_COLLECTION, LEGACY_USER_SETTINGS_COLLECTION } from '../lib/firebase';
-import { doc, getDoc, setDoc, deleteField, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, deleteField, updateDoc } from 'firebase/firestore';
 import { getSedes } from '../data/sedes';
+import { clientConfig } from '../../client.config';
 
 const USUARIOS_COLLECTION = 'usuarios';
 
@@ -142,7 +143,7 @@ export default function UserMenu() {
         aria-expanded={open}
         aria-label="Abrir menú de usuario"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(180deg,#0c3c6b_0%,#092b4d_100%)] text-xs font-semibold text-white">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ background: clientConfig.gradients.secundario }}>
           {initials}
         </span>
         <span className="hidden max-w-24 truncate text-sm font-medium text-slate-700 xl:block">

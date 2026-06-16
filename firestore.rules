@@ -2,31 +2,74 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Selección de sedes por usuario
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function getUserRole() {
+      let doc = get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+      return doc.exists ? doc.data.role : 'vigilante';
+    }
+
+    function isRole(role) {
+      return isAuth() && getUserRole() == role;
+    }
+
+    function hasAnyRole(roles) {
+      return isAuth() && getUserRole() in roles;
+    }
+
+    function isAdmin() {
+      return isRole('admin');
+    }
+
+    function isAdminOrSupervisor() {
+      return hasAnyRole(['admin', 'supervisor']);
+    }
+
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    function hasAuditFields() {
+      return request.resource.data.keys().hasAll(['createdBy', 'createdAt', 'userId']);
+    }
+
     match /sedes_seleccion_user/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
     }
 
-    // Configuración por usuario - cada uno solo su documento
     match /config_usuarios/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
     }
 
-    // Compatibilidad temporal con la colección antigua
     match /usuarios/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if isAuth();
+      allow create: if isAdmin();
+      allow update: if isAdmin() || isOwner(userId);
+      allow delete: if isAdmin();
     }
 
-    // Solo usuarios autenticados pueden acceder
     match /cargues_descargues/{document} {
-      allow create, read, update, delete: if request.auth != null;
+      allow create: if isAuth() && isRole('vigilante') && hasAuditFields();
+      allow read: if isAuth();
+      allow update: if isAuth() && (isOwner(resource.data.userId) || isAdminOrSupervisor());
+      allow delete: if isAdmin();
     }
 
     match /aperturas_seguridad/{document} {
-      allow create: if request.auth != null && 
-                       request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if request.auth != null && 
-                                      resource.data.userId == request.auth.uid;
+      allow create: if isAuth() && isRole('vigilante') && hasAuditFields();
+      allow read: if isAuth();
+      allow update: if isAuth() && (isOwner(resource.data.userId) || isAdminOrSupervisor());
+      allow delete: if isAdmin();
+    }
+
+    match /novedades/{document} {
+      allow create: if isAuth() && isRole('vigilante') && hasAuditFields();
+      allow read: if isAuth();
+      allow update: if isAuth() && (isOwner(resource.data.userId) || isAdminOrSupervisor());
+      allow delete: if isAdmin();
     }
   }
 }

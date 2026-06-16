@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { browserLocalPersistence, browserSessionPersistence, onAuthStateChanged, setPersistence, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
+import { clientConfig } from '../../client.config';
 
 export default function LoginForm({ nextPath = '/' }) {
   const [email, setEmail] = useState('');
@@ -10,6 +11,18 @@ export default function LoginForm({ nextPath = '/' }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const safeNextPath = nextPath && !nextPath.startsWith('/login') ? nextPath : '/';
+
+  useEffect(() => {
+    const motivo = localStorage.getItem('ares_session_expired');
+    if (motivo) {
+      localStorage.removeItem('ares_session_expired');
+      if (motivo === 'inactividad') {
+        setError('Tu sesión cerró por inactividad. Ingresa de nuevo.');
+      } else {
+        setError('Tu sesión expiró. Ingresa de nuevo.');
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -34,6 +47,7 @@ export default function LoginForm({ nextPath = '/' }) {
       setLoading(true);
       await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
       await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+      localStorage.setItem('ares_login_time', Date.now().toString());
       window.location.replace(safeNextPath);
     } catch (err) {
       console.error('Error autenticando', err);
@@ -117,7 +131,8 @@ export default function LoginForm({ nextPath = '/' }) {
       <button
         type="submit"
         disabled={loading}
-        className="group inline-flex w-full items-center justify-center gap-3 rounded-xl bg-[linear-gradient(180deg,#0c3c6b_0%,#092b4d_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(12,60,107,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_30px_rgba(12,60,107,0.24)] focus:outline-none focus:ring-2 focus:ring-[rgba(249,126,5,0.35)] focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-70 cursor-pointer"
+        className="group inline-flex w-full items-center justify-center gap-3 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(12,60,107,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_30px_rgba(12,60,107,0.24)] focus:outline-none focus:ring-2 focus:ring-[rgba(249,126,5,0.35)] focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-70 cursor-pointer"
+        style={{ background: clientConfig.gradients.secundario }}
       >
         <span>{loading ? 'Ingresando...' : 'Iniciar sesión'}</span>
         <svg aria-hidden="true" className="h-4 w-4 text-[rgb(249,126,5)] transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

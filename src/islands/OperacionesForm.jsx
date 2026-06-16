@@ -3,10 +3,13 @@ import { getSedes, getBodegasBySede } from '../data/sedes';
 import Lottie from 'lottie-react';
 import forkliftAnimation from '../assets/lotties/Forklift.json';
 import truckAnimation from '../assets/lotties/truck.json';
-import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where, getDoc, onSnapshot } from 'firebase/firestore';
-import { db, auth, USER_SETTINGS_COLLECTION, LEGACY_USER_SETTINGS_COLLECTION } from '../lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { db, auth, NOVEDADES_COLLECTION } from '../lib/firebase';
 import { notifyError, notifySuccess } from '../lib/toast';
+import { subirEvidencias } from '../lib/evidencias';
+import useStore from '../lib/store';
+import { obtenerSede } from './SedeSelectionModal';
+import { clientConfig } from '../../client.config';
 
 const operationThemes = {
   CARGUE: {
@@ -68,35 +71,7 @@ const operationThemes = {
 };
 
 export default function OperacionesForm() {
-  const [sedeFromFirestore, setSedeFromFirestore] = useState(null);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const userDocRef = doc(db, USER_SETTINGS_COLLECTION, user.uid);
-          const legacyUserDocRef = doc(db, LEGACY_USER_SETTINGS_COLLECTION, user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists() && userDoc.data().sedeSeleccionada) {
-            setSedeFromFirestore(userDoc.data().sedeSeleccionada);
-          } else {
-            const legacyUserDoc = await getDoc(legacyUserDocRef);
-            if (legacyUserDoc.exists() && legacyUserDoc.data().sedeSeleccionada) {
-              const legacyData = legacyUserDoc.data();
-              setSedeFromFirestore(legacyData.sedeSeleccionada);
-              await setDoc(userDocRef, legacyData, { merge: true });
-            }
-          }
-        } catch (err) {
-          console.error('Error cargando sede de Firestore', err);
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const sedeSeleccionada = sedeFromFirestore;
+  const sedeSeleccionada = useStore((s) => s.user?.sede) || obtenerSede();
 
   const [formData, setFormData] = useState({
     tipoOperacion: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: '', traeNovedad: false, tipoNovedad: ''
@@ -108,6 +83,7 @@ export default function OperacionesForm() {
   const [operacionCierre, setOperacionCierre] = useState(null);
   const [isClient, setIsClient] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [statusText, setStatusText] = useState('');
   const cierreSectionRef = useRef(null);
   
   const [erroresCierre, setErroresCierre] = useState({});
@@ -162,13 +138,13 @@ export default function OperacionesForm() {
           const consulta = query(
             collection(db, 'cargues_descargues'),
             where('placa', '==', value),
-            where('sede', '==', sedeSeleccionada)
+            where('sede', '==', sedeSeleccionada),
+            where('salidaRegistrada', '==', false)
           );
           const snap = await getDocs(consulta);
 
           const activos = snap.docs
-            .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
-            .filter((item) => item.estado !== 'FINALIZADO' && !item.salidaRegistrada);
+            .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
 
           if (activos.length) {
             // Mostrar modal para confirmar cierre de la operación activa más reciente
@@ -226,8 +202,12 @@ export default function OperacionesForm() {
     } else {
       if (!formData.bodega) nErr.bodega = 'Requerido';
       if (!formData.cliente || !formData.cliente.trim()) nErr.cliente = 'Requerido';
+      if (!formData.muelle || parseInt(formData.muelle, 10) < 1) nErr.muelle = 'Requerido';
       if (!formData.conductor || !formData.conductor.trim()) nErr.conductor = 'Requerido';
       if (!formData.numeroCC || !/^[0-9]+$/.test(formData.numeroCC)) nErr.numeroCC = 'Número inválido';
+      if (!formData.destino || !formData.destino.trim()) nErr.destino = 'Requerido';
+      if (!formData.responsable || !formData.responsable.trim()) nErr.responsable = 'Requerido';
+      if (!formData.asistente || !formData.asistente.trim()) nErr.asistente = 'Requerido';
       if (!formData.placa || !validarPlaca(formData.placa)) nErr.placa = 'Placa inválida';
     }
     setErrores(nErr);
@@ -250,45 +230,56 @@ export default function OperacionesForm() {
 
   // Se usan las mismas funciones `handleImagenesChange` / `eliminarImagen` para evidencias.
 
-  const cerrarOperacionPorPlaca = async (placa, cierreExtra = {}, sede = sedeSeleccionada) => {
+  const cerrarOperacionPorPlaca = async (placa, userId, userEmail, cierreExtra = {}, sede = sedeSeleccionada) => {
     const consulta = query(
       collection(db, 'cargues_descargues'),
       where('placa', '==', placa),
-      where('sede', '==', sede)
+      where('sede', '==', sede),
+      where('salidaRegistrada', '==', false)
     );
     const snap = await getDocs(consulta);
 
-    const activos = snap.docs
-      .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
-      .filter((item) => item.estado !== 'FINALIZADO' && !item.salidaRegistrada);
-
-    if (!activos.length) {
+    if (snap.empty) {
       throw new Error('No hay operación activa para esta placa.');
     }
 
-    const operacionActiva = activos.sort((a, b) => {
-      const aMs = obtenerMilisegundosEntrada(a);
-      const bMs = obtenerMilisegundosEntrada(b);
-      return (Number.isNaN(bMs) ? 0 : bMs) - (Number.isNaN(aMs) ? 0 : aMs);
-    })[0];
-
     const salida = new Date();
-    const entradaMs = obtenerMilisegundosEntrada(operacionActiva);
-    const duracionMinutos = Number.isNaN(entradaMs)
-      ? null
-      : Math.max(0, Math.round((salida.getTime() - entradaMs) / 60000));
+    let masReciente = null;
+    let maxMs = -1;
+    const updates = [];
 
-    await updateDoc(doc(db, 'cargues_descargues', operacionActiva.id), {
-      estado: 'FINALIZADO',
-      salidaRegistrada: true,
-      horaSalidaISO: salida.toISOString(),
-      horaSalidaTexto: fechaBogotaTexto(salida),
-      duracionMinutos,
-      ...cierreExtra,
-      finishedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+    snap.docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      const entradaMs = obtenerMilisegundosEntrada(data);
+      const duracionMinutos = Number.isNaN(entradaMs)
+        ? null
+        : Math.max(0, Math.round((salida.getTime() - entradaMs) / 60000));
+
+      updates.push(updateDoc(doc(db, 'cargues_descargues', docSnap.id), {
+        estado: 'FINALIZADO',
+        salidaRegistrada: true,
+        horaSalidaISO: salida.toISOString(),
+        horaSalidaTexto: fechaBogotaTexto(salida),
+        duracionMinutos,
+        ...cierreExtra,
+        closedBy: userEmail,
+        finishedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }));
+
+      if (!Number.isNaN(entradaMs) && entradaMs > maxMs) {
+        maxMs = entradaMs;
+        masReciente = { id: docSnap.id, placa: data.placa, duracionMinutos };
+      }
     });
-    return { placa: operacionActiva.placa, duracionMinutos };
+
+    await Promise.all(updates);
+
+    if (!masReciente) {
+      masReciente = { id: snap.docs[0].id, placa: snap.docs[0].data().placa, duracionMinutos: null };
+    }
+
+    return { placa: masReciente.placa, duracionMinutos: masReciente.duracionMinutos, operacionId: masReciente.id };
   };
 
   const handleConfirmCerrar = async () => {
@@ -325,22 +316,51 @@ export default function OperacionesForm() {
     e.preventDefault();
     if (!validarFormulario()) { notifyError('Corrija los errores'); return; }
     setGuardando(true);
+    setStatusText('Comprimiendo imágenes...');
 
     try {
+      const userId = auth.currentUser?.uid;
+      const userEmail = auth.currentUser?.email || '';
+
+      let evidenciasSubidas = [];
+      if (imagenes.length > 0) {
+        setStatusText('Subiendo imágenes a la nube...');
+        evidenciasSubidas = await subirEvidencias(imagenes, userId, 'operaciones');
+      }
+
+      setStatusText('Guardando registro en Firestore...');
+
       if (modoCierre) {
         const cierreExtra = {
           observaciones: originalObservaciones || null,
           observacionesCierre: textoEdicion?.trim() || null,
-          evidencias: imagenes.map(f => ({ name: f.name, size: f.size, type: f.type })),
+          evidencias: evidenciasSubidas,
           novedad: formData.traeNovedad ? { tipo: formData.tipoNovedad, detalle: textoEdicion?.trim() || null, fecha: fechaBogotaTexto(new Date()) } : null,
           fechaCierreTexto: fechaBogotaTexto(new Date()),
         };
-        const resultado = await cerrarOperacionPorPlaca(operacionCierre?.placa || formData.placa, cierreExtra);
-        notifySuccess(`Cierre registrado para ${resultado.placa}. Duración: ${resultado.duracionMinutos ?? 'N/A'} minutos.`);
+        const resultado = await cerrarOperacionPorPlaca(operacionCierre?.placa || formData.placa, userId, userEmail, cierreExtra);
+        notifySuccess(`${operacionCierre?.tipoOperacion || 'Operación'} finalizado para ${resultado.placa}. Duración: ${resultado.duracionMinutos ?? 'N/A'} minutos.`);
+
+        if (formData.traeNovedad) {
+          await addDoc(collection(db, NOVEDADES_COLLECTION), {
+            tipo: formData.tipoNovedad,
+            descripcion: textoEdicion?.trim() || '',
+            sede: sedeSeleccionada,
+            bodega: formData.bodega || null,
+            operacionId: resultado.operacionId || null,
+            placa: resultado.placa,
+            userId,
+            userEmail,
+            evidencias: evidenciasSubidas,
+            createdAt: serverTimestamp(),
+            createdBy: userEmail,
+          });
+        }
       } else {
         const ahora = new Date();
         const registro = {
-          userId: auth.currentUser?.uid,
+          userId,
+          userEmail,
           sede: sedeSeleccionada,
           ...formData,
           muelle: formData.muelle ? parseInt(formData.muelle, 10) : null,
@@ -354,15 +374,16 @@ export default function OperacionesForm() {
           novedadCierre: null,
           novedad: formData.traeNovedad ? { tipo: formData.tipoNovedad, detalle: formData.observaciones?.trim() || null, fecha: fechaBogotaTexto(ahora) } : null,
           horaInicio: ahora.toISOString(),
-          evidencias: imagenes.map(f=>({ name: f.name, size: f.size, type: f.type })),
+          evidencias: evidenciasSubidas,
           observaciones: textoEdicion?.trim() || null,
           fechaCreacion: fechaBogotaTexto(ahora),
           createdAt: serverTimestamp(),
+          createdBy: userEmail,
           updatedAt: serverTimestamp(),
         };
 
         await addDoc(collection(db, 'cargues_descargues'), registro);
-        notifySuccess('Registro guardado en Firestore');
+        notifySuccess('Reporte enviado con éxito');
       }
       resetear();
     } catch (error) {
@@ -372,6 +393,7 @@ export default function OperacionesForm() {
         : error?.message || 'No se pudo guardar el registro en Firestore.');
     } finally {
       setGuardando(false);
+      setStatusText('');
     }
   };
 
@@ -544,7 +566,7 @@ export default function OperacionesForm() {
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label htmlFor="camara" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition shadow-sm" style={{background: 'linear-gradient(90deg, #0C3C6B 0%, #092f53 100%)'}}>
+                <label htmlFor="camara" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition shadow-sm" style={{background: clientConfig.gradients.secundario}}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera-icon lucide-camera" aria-hidden="true" focusable="false">
                     <path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z" />
                     <circle cx="12" cy="13" r="3" />
@@ -595,16 +617,17 @@ export default function OperacionesForm() {
               <p className="mt-2 text-sm text-slate-700">¿Desea finalizar la operación del vehículo <strong>{operacionDetectada.placa}</strong>?</p>
               {operacionDetectada.horaEntradaTexto ? <p className="mt-1 text-xs text-slate-500">Inicio: {operacionDetectada.horaEntradaTexto}</p> : null}
               <div className="mt-4 flex justify-end gap-2">
-                <button type="button" onClick={() => { setShowConfirmModal(false); setOperacionDetectada(null); }} className={`${actionBase} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200`}>Cancelar</button>
+                <button type="button" onClick={() => { setShowConfirmModal(false); setOperacionDetectada(null); setLastCheckedPlaca(''); }} className={`${actionBase} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200`}>Cancelar</button>
                 <button type="button" onClick={handleConfirmCerrar} disabled={guardando} className={`${actionBase} ${operationTheme.button} text-white`}>{guardando ? 'PROCESANDO...' : 'Continuar'}</button>
               </div>
             </div>
           </div>
         ) : null}
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-4">
+          <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
           {imagenes.length === 0 ? <p className="mt-1 text-[11px] font-medium text-red-600 sm:order-first sm:mb-2">Debes adjuntar al menos una imagen para poder enviar el reporte.</p> : null}
-          <button type="submit" disabled={submitDisabled} className={`${actionBase} h-12 text-white shadow-md disabled:cursor-not-allowed disabled:opacity-60`} style={{background: 'linear-gradient(90deg, #f99705 0%, #F57A03 100%)', boxShadow: '0 10px 30px rgba(249,126,5,0.12)'}}>
+          {guardando && statusText ? <p className="text-xs text-slate-500 animate-pulse sm:order-first">{statusText}</p> : null}
+          <button type="submit" disabled={submitDisabled} className={`${actionBase} h-12 text-white shadow-md disabled:cursor-not-allowed disabled:opacity-60`} style={{background: clientConfig.gradients.primario, boxShadow: '0 10px 30px rgba(249,126,5,0.12)'}}>
             {guardando ? 'GUARDANDO...' : submitLabel}
           </button>
           <button type="button" onClick={resetear} className={`${actionBase} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200`}>
