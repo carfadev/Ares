@@ -32,9 +32,11 @@ if (typeof window !== 'undefined') {
     }
 
     if (!firebaseUser) {
-      useStore.setState({ user: null, initialized: true });
+      useStore.setState({ user: null, initialized: false });
       return;
     }
+
+    useStore.setState({ user: null, initialized: false });
 
     const docRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
     let isFirstSnapshot = true;
