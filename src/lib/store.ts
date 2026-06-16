@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db, USERS_COLLECTION } from './firebase';
 
@@ -44,7 +44,26 @@ if (typeof window !== 'undefined') {
       docRef,
       (docSnap) => {
         if (!docSnap.exists()) {
-          useStore.setState({ user: null, initialized: true });
+          getDoc(docRef).then((fallbackSnap) => {
+            if (fallbackSnap.exists()) {
+              const data = fallbackSnap.data();
+              useStore.setState({
+                user: {
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email || '',
+                  nombre: data.nombre,
+                  role: data.role,
+                  sede: data.sede,
+                  activo: data.activo,
+                },
+                initialized: true,
+              });
+            } else {
+              useStore.setState({ user: null, initialized: true });
+            }
+          }).catch(() => {
+            useStore.setState({ user: null, initialized: true });
+          });
           return;
         }
 
@@ -83,8 +102,28 @@ if (typeof window !== 'undefined') {
         }
       },
       (error) => {
-        console.error('Error listening to user document', error);
-        useStore.setState({ user: null, initialized: true });
+        console.error('Error listening to user document, trying direct fetch...', error);
+        getDoc(docRef).then((docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            useStore.setState({
+              user: {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                nombre: data.nombre,
+                role: data.role,
+                sede: data.sede,
+                activo: data.activo,
+              },
+              initialized: true,
+            });
+          } else {
+            useStore.setState({ user: null, initialized: true });
+          }
+        }).catch((fallbackError) => {
+          console.error('Fallback direct fetch also failed', fallbackError);
+          useStore.setState({ user: null, initialized: true });
+        });
       }
     );
   });
