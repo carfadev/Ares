@@ -11,17 +11,16 @@ function getGreeting() {
 export default function Greeting() {
   const [mounted, setMounted] = useState(false);
   const user = useStore((s) => s.user);
-  const initialized = useStore((s) => s.initialized);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted || !initialized) return null;
+  if (!mounted) return null;
 
-  const nombre = user?.nombre || user?.email?.split('@')[0] || 'Usuario';
+  const nombre = user?.nombre || user?.email?.split('@')[0];
 
   return (
-    <span>{getGreeting()}, {nombre}</span>
+    <span>{getGreeting()}{nombre ? `, ${nombre}` : ''}</span>
   );
 }

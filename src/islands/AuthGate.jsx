@@ -6,61 +6,22 @@ export default function AuthGate({ currentPath }) {
   useEffect(() => {
     const isLoginPage = currentPath === '/login';
 
-    const revealBody = () => {
-      document.body.style.visibility = 'visible';
-    };
-
-    const redirectToLogin = () => {
-      if (window.location.pathname === '/login') {
-        revealBody();
-        return;
-      }
-
-      const nextPath = `${window.location.pathname}${window.location.search}`;
-      window.location.replace(`/login?next=${encodeURIComponent(nextPath)}`);
-    };
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (isLoginPage) {
         if (user) {
           const next = new URL(window.location.href).searchParams.get('next');
           window.location.replace(next || '/');
-        } else {
-          revealBody();
         }
         return;
       }
 
       if (!user) {
-        redirectToLogin();
-        return;
+        const nextPath = `${window.location.pathname}${window.location.search}`;
+        window.location.replace(`/login?next=${encodeURIComponent(nextPath)}`);
       }
-
-      revealBody();
     });
 
-    const handlePageShow = () => {
-      if (isLoginPage) {
-        revealBody();
-        return;
-      }
-
-      const currentUser = auth.currentUser;
-
-      if (!currentUser) {
-        redirectToLogin();
-        return;
-      }
-
-      revealBody();
-    };
-
-    window.addEventListener('pageshow', handlePageShow);
-
-    return () => {
-      unsubscribe();
-      window.removeEventListener('pageshow', handlePageShow);
-    };
+    return () => unsubscribe();
   }, [currentPath]);
 
   return null;

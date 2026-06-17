@@ -17,14 +17,48 @@ interface AppState {
   initialized: boolean;
 }
 
+const CACHE_KEY = 'ares_user_profile';
+
+function loadCache(): UserProfile | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    localStorage.removeItem(CACHE_KEY);
+    return null;
+  }
+}
+
+function saveCache(user: UserProfile) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      uid: user.uid,
+      email: user.email,
+      nombre: user.nombre,
+    }));
+  } catch {}
+}
+
+function clearCache() {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+  } catch {}
+}
+
 let unsubscribeUserDoc: (() => void) | null = null;
 
+const cached = typeof window !== 'undefined' ? loadCache() : null;
+
 const useStore = create<AppState>(() => ({
-  user: null,
-  initialized: false,
+  user: cached,
+  initialized: !!cached,
 }));
 
 if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    useStore.setState((s) => (s.initialized ? {} : { initialized: true }));
+  }, 15000);
+
   onAuthStateChanged(auth, (firebaseUser) => {
     if (unsubscribeUserDoc) {
       unsubscribeUserDoc();
@@ -32,15 +66,39 @@ if (typeof window !== 'undefined') {
     }
 
     if (!firebaseUser) {
+      clearCache();
       useStore.setState({ user: null, initialized: false });
       return;
     }
 
-    useStore.setState({ user: null, initialized: false });
+    const currentUser = useStore.getState().user;
+
+    if (!currentUser || currentUser.uid !== firebaseUser.uid || !currentUser.nombre) {
+      useStore.setState({
+        user: {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || '',
+        },
+        initialized: false,
+      });
+    }
 
     const docRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
     let isFirstSnapshot = true;
     let initialSede: string | undefined;
+
+    const actualizarUsuario = (data: Record<string, unknown>) => {
+      const userData: UserProfile = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        nombre: data.nombre as string | undefined,
+        role: data.role as string | undefined,
+        sede: data.sede as string | undefined,
+        activo: data.activo as boolean | undefined,
+      };
+      saveCache(userData);
+      useStore.setState({ user: userData, initialized: true });
+    };
 
     unsubscribeUserDoc = onSnapshot(
       docRef,
@@ -48,18 +106,7 @@ if (typeof window !== 'undefined') {
         if (!docSnap.exists()) {
           getDoc(docRef).then((fallbackSnap) => {
             if (fallbackSnap.exists()) {
-              const data = fallbackSnap.data();
-              useStore.setState({
-                user: {
-                  uid: firebaseUser.uid,
-                  email: firebaseUser.email || '',
-                  nombre: data.nombre,
-                  role: data.role,
-                  sede: data.sede,
-                  activo: data.activo,
-                },
-                initialized: true,
-              });
+              actualizarUsuario(fallbackSnap.data());
             } else {
               useStore.setState({ user: null, initialized: true });
             }
@@ -70,55 +117,27 @@ if (typeof window !== 'undefined') {
         }
 
         const data = docSnap.data();
-        const newSede = data.sede;
+        const newSede = data.sede as string | undefined;
 
         if (isFirstSnapshot) {
           initialSede = newSede;
           isFirstSnapshot = false;
-          useStore.setState({
-            user: {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              nombre: data.nombre,
-              role: data.role,
-              sede: newSede,
-              activo: data.activo,
-            },
-            initialized: true,
-          });
+          actualizarUsuario(data);
         } else {
           if (initialSede && newSede !== initialSede) {
             signOut(auth);
             return;
           }
-          useStore.setState({
-            user: {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              nombre: data.nombre,
-              role: data.role,
-              sede: newSede,
-              activo: data.activo,
-            },
-          });
+          if (data.nombre || data.sede || data.role) {
+            actualizarUsuario(data);
+          }
         }
       },
       (error) => {
         console.error('Error listening to user document, trying direct fetch...', error);
         getDoc(docRef).then((docSnap) => {
           if (docSnap.exists()) {
-            const data = docSnap.data();
-            useStore.setState({
-              user: {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email || '',
-                nombre: data.nombre,
-                role: data.role,
-                sede: data.sede,
-                activo: data.activo,
-              },
-              initialized: true,
-            });
+            actualizarUsuario(docSnap.data());
           } else {
             useStore.setState({ user: null, initialized: true });
           }
