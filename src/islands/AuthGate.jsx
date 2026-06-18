@@ -4,19 +4,15 @@ import { auth } from '../lib/firebase';
 
 const REDIRECT_KEY = 'ares_auth_redirect_ts';
 
-export default function AuthGate({ currentPath }) {
+export default function AuthGate() {
   useEffect(() => {
-    const isLoginPage = currentPath === '/login';
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const isLoginPage = window.location.pathname === '/login';
+
       if (isLoginPage) {
         if (user) {
-          // Verificar que el token sea realmente válido antes de redirigir
-          // Si el token expiró y no se puede refrescar, no redirigimos
-          // (evita loop login→home→login con sesión corrupta)
           user.getIdToken()
             .then(() => {
-              // Token válido — redirigir
               if (!auth.currentUser) return;
               const next = new URL(window.location.href).searchParams.get('next');
               if (next && !next.startsWith('/login')) {
@@ -25,15 +21,12 @@ export default function AuthGate({ currentPath }) {
                 window.location.replace('/');
               }
             })
-            .catch(() => {
-              // Token inválido — nos quedamos en login
-            });
+            .catch(() => {});
         }
         return;
       }
 
       if (!user) {
-        // Anti-loop: evitar redirecciones rápidas repetidas
         const now = Date.now();
         const prev = sessionStorage.getItem(REDIRECT_KEY);
         if (prev && now - parseInt(prev, 10) < 10000) {
@@ -49,7 +42,7 @@ export default function AuthGate({ currentPath }) {
     });
 
     return () => unsubscribe();
-  }, [currentPath]);
+  }, []);
 
   return null;
 }

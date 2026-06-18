@@ -80,7 +80,7 @@ const isLoginPage = Astro.url.pathname === '/login';
     {!isLoginPage && <SkeletonLoader client:load />}
     {!isLoginPage && <SedeSelectionModal client:load />}
     <div id="main-content"><slot /></div>
-    <AuthGate client:load currentPath={Astro.url.pathname} />
+    <AuthGate client:load />
 
     <script is:inline>
       function updateGreetingMessage() {

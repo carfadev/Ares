@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { browserLocalPersistence, browserSessionPersistence, onAuthStateChanged, setPersistence, signInWithEmailAndPassword } from 'firebase/auth';
+import { browserLocalPersistence, browserSessionPersistence, setPersistence, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { clientConfig } from '../../client.config';
 
@@ -23,16 +23,6 @@ export default function LoginForm({ nextPath = '/' }) {
       }
     }
   }, []);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        window.location.replace(safeNextPath);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [safeNextPath]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
