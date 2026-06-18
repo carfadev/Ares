@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import useStore from '../lib/store';
+import { auth } from '../lib/firebase';
 
 export default function SkeletonLoader() {
   const initialized = useStore((s) => s.initialized);
+  const user = useStore((s) => s.user);
   const [show, setShow] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
+
+  const hasUser = user !== null || auth.currentUser !== null;
 
   useEffect(() => {
     if (initialized) {
@@ -14,6 +18,7 @@ export default function SkeletonLoader() {
     }
   }, [initialized]);
 
+  if (!hasUser) return null;
   if (!show) return null;
 
   return (

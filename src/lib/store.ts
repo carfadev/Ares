@@ -35,6 +35,9 @@ function saveCache(user: UserProfile) {
       uid: user.uid,
       email: user.email,
       nombre: user.nombre,
+      role: user.role,
+      sede: user.sede,
+      activo: user.activo,
     }));
   } catch {}
 }

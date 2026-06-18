@@ -50,7 +50,7 @@ const isLoginPage = Astro.url.pathname === '/login';
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
-  <body style={`background: ${clientConfig.colors.neutroClaro}`}>
+  <body style={`background: ${clientConfig.colors.neutroClaro}; visibility: ${isLoginPage ? 'visible' : 'hidden'}`}>
     {showHeader && (
       <header
         class="fixed left-1/2 top-4 z-50 w-[calc(100%-1.5rem)] max-w-5xl -translate-x-1/2 overflow-visible rounded-full border border-white/45 bg-white/30 shadow-[0_12px_40px_rgba(15,23,42,0.18)] backdrop-blur-2xl"
