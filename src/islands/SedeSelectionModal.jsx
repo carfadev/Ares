@@ -46,7 +46,7 @@ export default function SedeSelectionModal() {
 
   if (!initialized || user?.sede) return null;
 
-  return (
+  /* return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="mx-4 max-w-md rounded-2xl bg-white p-6 shadow-lg text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
@@ -62,5 +62,5 @@ export default function SedeSelectionModal() {
         </p>
       </div>
     </div>
-  );
+  ); */
 }
