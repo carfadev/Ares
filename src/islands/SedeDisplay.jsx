@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-/* import { obtenerSede } from './SedeSelectionModal'; */
+import { obtenerSede } from './SedeSelectionModal';
 import useStore from '../lib/store';
 
 export default function SedeDisplay() {
