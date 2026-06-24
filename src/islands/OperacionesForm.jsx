@@ -8,7 +8,7 @@ import { db, auth, NOVEDADES_COLLECTION } from '../lib/firebase';
 import { notifyError, notifySuccess } from '../lib/toast';
 import { subirEvidencias } from '../lib/evidencias';
 import useStore from '../lib/store';
-import { obtenerSede } from './SedeSelectionModal';
+import { obtenerSede } from '../lib/sedeCache';
 import { clientConfig } from '../../client.config';
 
 const operationThemes = {

@@ -10,7 +10,6 @@ import ToastBridge from '../islands/ToastBridge.jsx';
 import AuthGate from '../islands/AuthGate.jsx';
 import UserMenu from '../islands/UserMenu.jsx';
 import SedeDisplay from '../islands/SedeDisplay.jsx';
-import SedeSelectionModal from '../islands/SedeSelectionModal.jsx';
 import SkeletonLoader from '../islands/SkeletonLoader.jsx';
 import SessionManager from '../islands/SessionManager.jsx';
 
@@ -78,7 +77,6 @@ const isLoginPage = Astro.url.pathname === '/login';
     <SessionManager client:load />
     <ToastBridge client:load />
     {!isLoginPage && <SkeletonLoader client:load />}
-    {!isLoginPage && <SedeSelectionModal client:load />}
     <div id="main-content"><slot /></div>
     <AuthGate client:load />
 
