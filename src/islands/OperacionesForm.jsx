@@ -9,6 +9,7 @@ import { notifyError, notifySuccess } from '../lib/toast';
 import { subirEvidencias } from '../lib/evidencias';
 import useStore from '../lib/store';
 import { obtenerSede } from './SedeSelectionModal';
+import { useEvidencias } from '../hooks/useEvidencias';
 import { clientConfig } from '../../client.config';
 
 const operationThemes = {
@@ -95,8 +96,7 @@ export default function OperacionesForm() {
   }, []);
 
   const bodegasDisponibles = useMemo(() => sedeSeleccionada ? getBodegasBySede(sedeSeleccionada) : [], [sedeSeleccionada]);
-  const [imagenes, setImagenes] = useState([]);
-  const [previews, setPreviews] = useState([]);
+  const { imagenes, previews, handleImagenesChange, eliminarImagen, resetImagenes } = useEvidencias();
   const [errores, setErrores] = useState({});
 
   const validarPlaca = (placa) => /^[A-Z]{3}[0-9]{3}$/.test(placa);
@@ -173,23 +173,6 @@ export default function OperacionesForm() {
     if (errores[name]) setErrores(prev => ({ ...prev, [name]: '' }));
   };
 
-  const handleImagenesChange = (e) => {
-    const files = Array.from(e.target.files || []);
-    const valid = files.filter(f => ['image/jpeg','image/png'].includes(f.type));
-    if (valid.length === 0) return;
-    setImagenes(prev => [...prev, ...valid]);
-    valid.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = () => setPreviews(prev => [...prev, { name: file.name, url: reader.result }]);
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const eliminarImagen = (i) => {
-    setImagenes(prev => prev.filter((_,idx)=>idx!==i));
-    setPreviews(prev => prev.filter((_,idx)=>idx!==i));
-  };
-
   const validarFormulario = () => {
     const nErr = {};
     if (formData.traeNovedad && !formData.tipoNovedad) nErr.tipoNovedad = 'Requerido';
@@ -216,7 +199,7 @@ export default function OperacionesForm() {
 
   const resetear = () => {
     setFormData({ tipoOperacion: '', bodega: '', cliente: '', muelle: '', conductor: '', numeroCC: '', placa: '', destino: '', responsable: '', asistente: '', observaciones: '' });
-    setImagenes([]); setPreviews([]); setErrores({});
+    resetImagenes(); setErrores({});
     setModoCierre(false);
     setOperacionCierre(null);
     setShowConfirmModal(false);
@@ -342,19 +325,24 @@ export default function OperacionesForm() {
         notifySuccess(`${operacionCierre?.tipoOperacion || 'Operación'} finalizado para ${resultado.placa}. Duración: ${resultado.duracionMinutos ?? 'N/A'} minutos.`);
 
         if (formData.traeNovedad) {
-          await addDoc(collection(db, NOVEDADES_COLLECTION), {
-            tipo: formData.tipoNovedad,
-            descripcion: textoEdicion?.trim() || '',
-            sede: sedeSeleccionada,
-            bodega: formData.bodega || null,
-            operacionId: resultado.operacionId || null,
-            placa: resultado.placa,
-            userId,
-            userEmail,
-            evidencias: evidenciasSubidas,
-            createdAt: serverTimestamp(),
-            createdBy: userEmail,
-          });
+          try {
+            await addDoc(collection(db, NOVEDADES_COLLECTION), {
+              tipo: formData.tipoNovedad,
+              descripcion: textoEdicion?.trim() || '',
+              sede: sedeSeleccionada,
+              bodega: formData.bodega || null,
+              operacionId: resultado.operacionId || null,
+              placa: resultado.placa,
+              userId,
+              userEmail,
+              evidencias: evidenciasSubidas,
+              createdAt: serverTimestamp(),
+              createdBy: userEmail,
+            });
+          } catch (err) {
+            console.error('Error registrando novedad asociada al cierre', err);
+            notifyError('Operación cerrada, pero no se pudo registrar la novedad.');
+          }
         }
       } else {
         const ahora = new Date();

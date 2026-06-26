@@ -9,7 +9,8 @@ service cloud.firestore {
 
     function getUserRole() {
       let doc = get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
-      return doc.exists ? doc.data.role : 'vigilante';
+      let role = doc.exists ? doc.data.role : null;
+      return role != null ? role : 'vigilante';
     }
 
     function isRole(role) {
@@ -52,7 +53,7 @@ service cloud.firestore {
     }
 
     match /cargues_descargues/{document} {
-      allow create: if isAuth() && isRole('vigilante') && hasAuditFields();
+      allow create: if isAuth() && hasAuditFields();
       allow read: if isAuth();
       allow update: if isAuth() && (isOwner(resource.data.userId) || isAdminOrSupervisor());
       allow delete: if isAdmin();
@@ -66,7 +67,7 @@ service cloud.firestore {
     }
 
     match /novedades/{document} {
-      allow create: if isAuth() && isRole('vigilante') && hasAuditFields();
+      allow create: if isAuth() && hasAuditFields();
       allow read: if isAuth();
       allow update: if isAuth() && (isOwner(resource.data.userId) || isAdminOrSupervisor());
       allow delete: if isAdmin();

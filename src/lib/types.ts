@@ -1,7 +1,9 @@
+import { Timestamp } from 'firebase/firestore';
+
 export type UserRole = 'vigilante' | 'operador' | 'supervisor' | 'admin';
 
 export type TipoOperacion = 'CARGUE' | 'DESCARGUE' | 'HORA_FINAL';
-export type EstadoOperacion = 'ACTIVA' | 'CERRADA';
+export type EstadoOperacion = 'EN_PROCESO' | 'FINALIZADO';
 
 export type TipoApertura = 'REJA' | 'CUARTO';
 
@@ -37,26 +39,41 @@ export interface UserProfile {
 }
 
 export interface Operacion {
-  placa: string;
-  tipo: TipoOperacion;
-  sede: string;
-  bodega: string;
   userId: string;
   userEmail: string;
+  sede: string;
+  tipoOperacion: string;
+  placa: string;
+  bodega: string;
+  cliente: string;
+  muelle: number | null;
+  conductor: string;
+  numeroCC: string;
+  destino: string;
+  responsable: string;
+  asistente: string;
+  observaciones: string | null;
+  traeNovedad: boolean;
+  tipoNovedad: string;
   estado: EstadoOperacion;
-  evidencias: Evidencia[];
-  novedad?: string;
-  horaEntrada: string;
+  salidaRegistrada: boolean;
   horaEntradaISO: string;
-  horaSalida?: string;
-  horaSalidaISO?: string;
-  duracionSegundos?: number;
-  createdAt: string;
-  createdBy: string;
-  updatedAt?: string;
-  updatedBy?: string;
-  closedAt?: string;
+  horaEntradaTexto: string;
+  horaInicio: string;
+  horaSalidaISO: string | null;
+  horaSalidaTexto: string | null;
+  duracionMinutos: number | null;
+  novedadCierre: null;
+  novedad: { tipo: string; detalle: string | null; fecha: string } | null;
+  evidencias: Evidencia[];
+  observacionesCierre?: string | null;
+  fechaCierreTexto?: string;
   closedBy?: string;
+  finishedAt?: Timestamp;
+  fechaCreacion: string;
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 export interface Apertura {
