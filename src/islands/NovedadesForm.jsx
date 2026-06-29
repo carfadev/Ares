@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db, auth, NOVEDADES_COLLECTION } from '../lib/firebase';
 import { notifyError, notifySuccess } from '../lib/toast';
-import { subirEvidencias } from '../lib/evidencias';
+import { subirEvidencias, eliminarEvidencias } from '../lib/evidencias';
 import useStore from '../lib/store';
 import { getBodegasBySede } from '../data/sedes';
 
@@ -95,9 +95,15 @@ export default function NovedadesForm() {
     setGuardando(true);
 
     try {
+      const userId = auth.currentUser?.uid;
+      const userEmail = auth.currentUser?.email || '';
+
+      const docRef = doc(collection(db, NOVEDADES_COLLECTION));
+      const idRegistro = docRef.id;
+
       let evidenciasSubidas = [];
       if (imagenes.length > 0) {
-        evidenciasSubidas = await subirEvidencias(imagenes, auth.currentUser?.uid, 'novedades');
+        evidenciasSubidas = await subirEvidencias(imagenes, 'novedades', idRegistro, userId);
       }
 
       const registro = {
@@ -105,14 +111,19 @@ export default function NovedadesForm() {
         descripcion: formData.descripcion.trim(),
         sede,
         bodega: formData.bodega || '',
-        userId: auth.currentUser?.uid,
-        userEmail: auth.currentUser?.email || '',
+        userId,
+        userEmail,
         evidencias: evidenciasSubidas,
-        createdBy: auth.currentUser?.email || '',
+        createdBy: userEmail,
         createdAt: serverTimestamp(),
       };
 
-      await addDoc(collection(db, NOVEDADES_COLLECTION), registro);
+      try {
+        await setDoc(docRef, registro);
+      } catch (firestoreError) {
+        await eliminarEvidencias(evidenciasSubidas);
+        throw firestoreError;
+      }
       notifySuccess('Novedad registrada correctamente');
       resetear();
     } catch (error) {

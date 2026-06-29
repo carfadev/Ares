@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { notifyError, notifySuccess } from '../lib/toast';
-import { subirEvidencias } from '../lib/evidencias';
+import { subirEvidencias, eliminarEvidencias } from '../lib/evidencias';
 
 const openingThemes = {
   REJA: {
@@ -176,26 +176,37 @@ export default function AperturasForm() {
     setGuardando(true);
 
     try {
+      const userId = auth.currentUser?.uid;
+      const userEmail = auth.currentUser?.email || '';
+
+      const docRef = doc(collection(db, 'aperturas_seguridad'));
+      const idRegistro = docRef.id;
+
       let evidenciasSubidas = [];
       if (imagenes.length > 0) {
-        evidenciasSubidas = await subirEvidencias(imagenes, auth.currentUser?.uid, 'aperturas');
+        evidenciasSubidas = await subirEvidencias(imagenes, 'aperturas', idRegistro, userId);
       }
 
       const registro = {
         modulo: 'APERTURAS',
         tipoRegistro: 'APERTURA',
-        userId: auth.currentUser?.uid,
-        userEmail: auth.currentUser?.email || '',
+        userId,
+        userEmail,
         ...formData,
         bodegaLabel: bodegaDisponible?.label || '',
         evidencias: evidenciasSubidas,
-        createdBy: auth.currentUser?.email || '',
+        createdBy: userEmail,
         fechaCreacion: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
 
-      await addDoc(collection(db, 'aperturas_seguridad'), registro);
+      try {
+        await setDoc(docRef, registro);
+      } catch (firestoreError) {
+        await eliminarEvidencias(evidenciasSubidas);
+        throw firestoreError;
+      }
       notifySuccess('Apertura guardada en Firestore');
       resetear();
     } catch (error) {

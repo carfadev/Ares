@@ -1,4 +1,4 @@
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from './firebase';
 import { comprimirImagen } from './compresion';
 
@@ -12,10 +12,6 @@ export interface EvidenciaSubida {
   createdAt: string;
 }
 
-function generarId(): string {
-  return `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-}
-
 function conTimeout<T>(promesa: Promise<T>, ms: number = 30000): Promise<T> {
   return Promise.race([
     promesa,
@@ -27,12 +23,13 @@ function conTimeout<T>(promesa: Promise<T>, ms: number = 30000): Promise<T> {
 
 export async function subirEvidencia(
   file: File,
+  tipo: string,
+  idRegistro: string,
   userId: string,
-  carpeta: string = 'general'
+  indice: number = 1
 ): Promise<EvidenciaSubida> {
-  const id = generarId();
-  const nombre = `${id}.jpg`;
-  const path = `evidencias/${userId}/${carpeta}/${nombre}`;
+  const nombre = `evidencia_${indice}_${Date.now()}.webp`;
+  const path = `evidencias/${tipo}/${idRegistro}/${nombre}`;
 
   let blob: Blob;
   try {
@@ -43,11 +40,8 @@ export async function subirEvidencia(
 
   const storageRef = ref(storage, path);
 
-  console.log('[Storage] Intentando subir a bucket:', storage.app.options.storageBucket);
-  console.log('[Storage] Path:', path);
-
   const metadata = {
-    contentType: 'image/jpeg',
+    contentType: 'image/webp',
     customMetadata: {
       userId,
       nombreOriginal: file.name,
@@ -57,14 +51,13 @@ export async function subirEvidencia(
   try {
     await conTimeout(uploadBytes(storageRef, blob, metadata), 30000);
   } catch (err: any) {
-    console.error('[Storage] Error detallado:', err);
     if (err?.code === 'storage/unauthorized') {
       throw new Error('Storage: no tienes permisos para subir archivos. Verifica las reglas de Storage.');
     }
     if (err?.code === 'storage/object-not-found') {
-      throw new Error(`Storage: el bucket "${storage.app.options.storageBucket}" no existe o no coincide. Verifica el nombre en Firebase Console.`);
+      throw new Error(`Storage: el bucket "${storage.app.options.storageBucket}" no existe o no coincide.`);
     }
-    throw new Error(`Error al subir imagen a Storage (bucket: ${storage.app.options.storageBucket}): ${err?.message || 'desconocido'}`);
+    throw new Error(`Error al subir imagen a Storage: ${err?.message || 'desconocido'}`);
   }
 
   let url: string;
@@ -75,25 +68,48 @@ export async function subirEvidencia(
   }
 
   return {
-    id,
+    id: nombre.replace('.webp', ''),
     url,
     path,
     nombre: file.name,
     tamano: blob.size,
-    tipo: 'image/jpeg',
+    tipo: 'image/webp',
     createdAt: new Date().toISOString(),
   };
 }
 
 export async function subirEvidencias(
   files: File[],
-  userId: string,
-  carpeta: string = 'general'
+  tipo: string,
+  idRegistro: string,
+  userId: string
 ): Promise<EvidenciaSubida[]> {
   const resultados: EvidenciaSubida[] = [];
-  for (const file of files) {
-    const evidencia = await subirEvidencia(file, userId, carpeta);
-    resultados.push(evidencia);
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const evidencia = await subirEvidencia(files[i], tipo, idRegistro, userId, i + 1);
+      resultados.push(evidencia);
+    }
+  } catch (err) {
+    for (const ev of resultados) {
+      try {
+        await deleteObject(ref(storage, ev.path));
+      } catch {}
+    }
+    throw err;
   }
   return resultados;
+}
+
+export async function eliminarEvidencia(path: string): Promise<void> {
+  const storageRef = ref(storage, path);
+  await deleteObject(storageRef);
+}
+
+export async function eliminarEvidencias(evidencias: EvidenciaSubida[]): Promise<void> {
+  await Promise.all(
+    evidencias.map(ev =>
+      deleteObject(ref(storage, ev.path)).catch(() => {})
+    )
+  );
 }

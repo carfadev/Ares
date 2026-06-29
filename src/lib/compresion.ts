@@ -1,5 +1,5 @@
-const MAX_ANCHO = 800;
-const CALIDAD_JPEG = 0.75;
+const MAX_ANCHO = 1920;
+const CALIDAD_WEBP = 0.80;
 
 export function comprimirImagen(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -31,8 +31,8 @@ export function comprimirImagen(file: File): Promise<Blob> {
           if (blob) resolve(blob);
           else reject(new Error('Error al comprimir la imagen'));
         },
-        'image/jpeg',
-        CALIDAD_JPEG
+        'image/webp',
+        CALIDAD_WEBP
       );
     };
     img.onerror = () => reject(new Error('Error al cargar la imagen'));

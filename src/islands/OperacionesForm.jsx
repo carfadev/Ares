@@ -3,10 +3,10 @@ import { getBodegasBySede, getClienteByBodega } from '../data/sedes';
 import Lottie from 'lottie-react';
 import forkliftAnimation from '../assets/lotties/Forklift.json';
 import truckAnimation from '../assets/lotties/truck.json';
-import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db, auth, NOVEDADES_COLLECTION } from '../lib/firebase';
 import { notifyError, notifySuccess } from '../lib/toast';
-import { subirEvidencias } from '../lib/evidencias';
+import { subirEvidencias, eliminarEvidencias } from '../lib/evidencias';
 import useStore from '../lib/store';
 import { obtenerSede } from './SedeSelectionModal';
 import { useEvidencias } from '../hooks/useEvidencias';
@@ -96,7 +96,7 @@ export default function OperacionesForm() {
   }, []);
 
   const bodegasDisponibles = useMemo(() => sedeSeleccionada ? getBodegasBySede(sedeSeleccionada) : [], [sedeSeleccionada]);
-  const { imagenes, previews, handleImagenesChange, eliminarImagen, resetImagenes } = useEvidencias();
+  const { imagenes, previews, handleImagenesChange, eliminarImagen, resetImagenes, total, maxLimit } = useEvidencias(3);
   const [errores, setErrores] = useState({});
 
   const validarPlaca = (placa) => /^[A-Z]{3}[0-9]{3}$/.test(placa);
@@ -310,16 +310,16 @@ export default function OperacionesForm() {
     try {
       const userId = auth.currentUser?.uid;
       const userEmail = auth.currentUser?.email || '';
-
       let evidenciasSubidas = [];
-      if (imagenes.length > 0) {
-        setStatusText('Subiendo imágenes a la nube...');
-        evidenciasSubidas = await subirEvidencias(imagenes, userId, 'operaciones');
-      }
-
-      setStatusText('Guardando registro en Firestore...');
 
       if (modoCierre) {
+        if (imagenes.length > 0) {
+          setStatusText('Subiendo imágenes a la nube...');
+          evidenciasSubidas = await subirEvidencias(imagenes, 'operaciones', operacionCierre.id, userId);
+        }
+
+        setStatusText('Guardando registro en Firestore...');
+
         const cierreExtra = {
           observaciones: originalObservaciones || null,
           observacionesCierre: textoEdicion?.trim() || null,
@@ -327,7 +327,13 @@ export default function OperacionesForm() {
           novedad: formData.traeNovedad ? { tipo: formData.tipoNovedad, detalle: textoEdicion?.trim() || null, fecha: fechaBogotaTexto(new Date()) } : null,
           fechaCierreTexto: fechaBogotaTexto(new Date()),
         };
-        const resultado = await cerrarOperacionPorPlaca(operacionCierre?.placa || formData.placa, userId, userEmail, cierreExtra);
+        let resultado;
+        try {
+          resultado = await cerrarOperacionPorPlaca(operacionCierre?.placa || formData.placa, userId, userEmail, cierreExtra);
+        } catch (cierreError) {
+          await eliminarEvidencias(evidenciasSubidas);
+          throw cierreError;
+        }
         notifySuccess(`${operacionCierre?.tipoOperacion || 'Operación'} finalizado para ${resultado.placa}. Duración: ${resultado.duracionMinutos ?? 'N/A'} minutos.`);
 
         if (formData.traeNovedad) {
@@ -368,7 +374,7 @@ export default function OperacionesForm() {
           novedadCierre: null,
           novedad: formData.traeNovedad ? { tipo: formData.tipoNovedad, detalle: formData.observaciones?.trim() || null, fecha: fechaBogotaTexto(ahora) } : null,
           horaInicio: ahora.toISOString(),
-          evidencias: evidenciasSubidas,
+          evidencias: [],
           observaciones: textoEdicion?.trim() || null,
           fechaCreacion: fechaBogotaTexto(ahora),
           createdAt: serverTimestamp(),
@@ -376,7 +382,22 @@ export default function OperacionesForm() {
           updatedAt: serverTimestamp(),
         };
 
-        await addDoc(collection(db, 'cargues_descargues'), registro);
+        const docRef = doc(collection(db, 'cargues_descargues'));
+        const idRegistro = docRef.id;
+
+        if (imagenes.length > 0) {
+          setStatusText('Subiendo imágenes a la nube...');
+          evidenciasSubidas = await subirEvidencias(imagenes, 'operaciones', idRegistro, userId);
+        }
+
+        setStatusText('Guardando registro en Firestore...');
+
+        try {
+          await setDoc(docRef, { ...registro, evidencias: evidenciasSubidas });
+        } catch (firestoreError) {
+          await eliminarEvidencias(evidenciasSubidas);
+          throw firestoreError;
+        }
         notifySuccess('Reporte enviado con éxito');
       }
       resetear();
@@ -398,7 +419,7 @@ export default function OperacionesForm() {
   const actionBase = 'inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 cursor-pointer';
   const operationTheme = operationThemes[formData.tipoOperacion] || operationThemes.DEFAULT;
   const submitLabel = modoCierre ? 'FINALIZAR OPERACIÓN' : esHoraFinal ? 'REGISTRAR HORA FINAL' : formData.tipoOperacion === 'DESCARGUE' ? 'REGISTRAR DESCARGUE' : formData.tipoOperacion === 'CARGUE' ? 'REGISTRAR CARGUE' : 'REGISTRAR OPERACIÓN';
-  const submitDisabled = guardando || imagenes.length === 0;
+  const submitDisabled = guardando || total === 0;
 
   return (
     <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/70">
@@ -555,30 +576,28 @@ export default function OperacionesForm() {
             <textarea name="observaciones" value={textoEdicion} onChange={(e) => setTextoEdicion(e.target.value)} placeholder={modoCierre ? 'Ingrese observaciones de cierre o detalle de la novedad...' : 'Ingrese observaciones adicionales...'} rows="4" className={fieldBase + ' h-auto py-3'} />
 
               <div className="mt-4">
-              <div className="mb-3">
+              <div className="mb-3 flex items-center justify-between">
                 <span className={labelBase}>Evidencias <span className="normal-case font-normal text-slate-500">{modoCierre ? '(Obligatorio)' : '(Obligatorio)'}</span></span>
+                <span className={`text-xs font-semibold ${total >= maxLimit ? 'text-amber-600' : 'text-slate-500'}`}>
+                  {total}/{maxLimit}
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label htmlFor="camara" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition shadow-sm" style={{background: clientConfig.gradients.secundario}}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera-icon lucide-camera" aria-hidden="true" focusable="false">
-                    <path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z" />
-                    <circle cx="12" cy="13" r="3" />
-                  </svg>
-                  <span className="ml-2">Registrar Evidencia</span>
-                </label>
-                {/* <label htmlFor="archivos" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition shadow-sm" style={{background: 'linear-gradient(90deg, #0C3C6B 0%, #092f53 100%)'}}>
-                  <span>🖼️</span>
-                  Seleccionar Archivos
-                </label> */}
-                <input id="camara" type="file" accept="image/jpeg,image/png" capture="environment" multiple onChange={handleImagenesChange} className="hidden" />
-
-                {/* <label htmlFor="archivos" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
-                  <span>🖼️</span>
-                  Seleccionar Archivos
-                </label> */}
-                <input id="archivos" type="file" accept="image/jpeg,image/png" multiple onChange={handleImagenesChange} className="hidden" />
-              </div>
+              {total < maxLimit ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label htmlFor="camara" className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition shadow-sm" style={{background: clientConfig.gradients.secundario}}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera-icon lucide-camera" aria-hidden="true" focusable="false">
+                      <path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z" />
+                      <circle cx="12" cy="13" r="3" />
+                    </svg>
+                    <span className="ml-2">Registrar Evidencia</span>
+                  </label>
+                  <input id="camara" type="file" accept="image/jpeg,image/png" capture="environment" multiple onChange={handleImagenesChange} className="hidden" />
+                  <input id="archivos" type="file" accept="image/jpeg,image/png" multiple onChange={handleImagenesChange} className="hidden" />
+                </div>
+              ) : (
+                <p className="text-xs font-medium text-amber-600">Límite de {maxLimit} imágenes alcanzado.</p>
+              )}
 
               {previews.length > 0 && (
                 <div className="mt-4">
@@ -619,7 +638,7 @@ export default function OperacionesForm() {
         ) : null}
 
           <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
-          {imagenes.length === 0 ? <p className="mt-1 text-[11px] font-medium text-red-600 sm:order-first sm:mb-2">Debes adjuntar al menos una imagen para poder enviar el reporte.</p> : null}
+          {total === 0 ? <p className="mt-1 text-[11px] font-medium text-red-600 sm:order-first sm:mb-2">Debes adjuntar al menos una imagen para poder enviar el reporte.</p> : null}
           {guardando && statusText ? <p className="text-xs text-slate-500 animate-pulse sm:order-first">{statusText}</p> : null}
           <button type="submit" disabled={submitDisabled} className={`${actionBase} h-12 text-white shadow-md disabled:cursor-not-allowed disabled:opacity-60`} style={{background: clientConfig.gradients.primario, boxShadow: '0 10px 30px rgba(249,126,5,0.12)'}}>
             {guardando ? 'GUARDANDO...' : submitLabel}

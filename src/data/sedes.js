@@ -3,10 +3,10 @@ export const sedesConfig = {
   'ZONA FRANCA': {
     nombre: 'ZONA FRANCA',
     bodegas: [
-      { nombre: 'ZONA FRANCA 2', cliente: '' },
-      { nombre: 'ZONA FRANCA 4', cliente: '' },
-      { nombre: 'ZONA FRANCA 5', cliente: '' },
-      { nombre: 'ZONA FRANCA 6', cliente: '' }
+      { nombre: 'BODEGA 2', cliente: '' },
+      { nombre: 'BODEGA 4', cliente: '' },
+      { nombre: 'BODEGA 5', cliente: '' },
+      { nombre: 'BODEGA 6', cliente: '' }
     ]
   },
   'CELTA': {
