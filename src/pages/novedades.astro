@@ -7,8 +7,14 @@ import NovedadesForm from '../islands/NovedadesForm.jsx';
 <BaseLayout title="Novedades — Ares">
   <div class="min-h-screen text-slate-900">
     <main class="mx-auto max-w-5xl px-4 pb-10 pt-24 sm:px-6 sm:pb-12 sm:pt-28">
-      <div class="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <a href="/" class="text-sm font-medium text-cyan-700 hover:text-cyan-900">Volver al inicio</a>
+      <div class="mx-auto mb-5 max-w-4xl sm:mb-6">
+        <nav class="flex items-center gap-1.5 text-sm text-slate-500">
+          <a href="/" class="font-medium text-cyan-700 hover:text-cyan-900">Inicio</a>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class="text-slate-400">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+          <span class="font-semibold text-slate-700">Novedades</span>
+        </nav>
       </div>
       <NovedadesForm client:load />
     </main>

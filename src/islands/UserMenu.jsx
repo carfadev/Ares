@@ -124,8 +124,8 @@ export default function UserMenu() {
 
   if (!user) {
     return (
-      <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <div className="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="sm:w-5 sm:h-5">
           <circle cx="12" cy="8" r="5" />
           <path d="M20 21a8 8 0 0 0-16 0" />
         </svg>
@@ -143,7 +143,7 @@ export default function UserMenu() {
         aria-expanded={open}
         aria-label="Abrir menú de usuario"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ background: clientConfig.gradients.secundario }}>
+        <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full text-[10px] sm:text-xs font-semibold text-white" style={{ background: clientConfig.gradients.secundario }}>
           {initials}
         </span>
         <span className="hidden max-w-24 truncate text-sm font-medium text-slate-700 xl:block">

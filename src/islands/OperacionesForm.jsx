@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { getSedes, getBodegasBySede } from '../data/sedes';
+import { getBodegasBySede, getClienteByBodega } from '../data/sedes';
 import Lottie from 'lottie-react';
 import forkliftAnimation from '../assets/lotties/Forklift.json';
 import truckAnimation from '../assets/lotties/truck.json';
@@ -169,7 +169,13 @@ export default function OperacionesForm() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const updates = { [name]: value };
+      if (name === 'bodega') {
+        updates.cliente = getClienteByBodega(sedeSeleccionada, value);
+      }
+      return { ...prev, ...updates };
+    });
     if (errores[name]) setErrores(prev => ({ ...prev, [name]: '' }));
   };
 
@@ -494,7 +500,7 @@ export default function OperacionesForm() {
               </label>
 
               <label className="block">
-                <span className={labelBase}>Asistente de Seguridad <span className="text-rose-500">*</span></span>
+                <span className={labelBase}>Unidad de Seguridad <span className="text-rose-500">*</span></span>
                 <input name="asistente" value={formData.asistente} onChange={handleInputChange} placeholder="Nombre del asistente" className={fieldBase} />
                 {errores.asistente && <span className={errorText}>{errores.asistente}</span>}
               </label>

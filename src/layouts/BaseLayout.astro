@@ -12,6 +12,7 @@ import UserMenu from '../islands/UserMenu.jsx';
 import SedeDisplay from '../islands/SedeDisplay.jsx';
 import SedeSelectionModal from '../islands/SedeSelectionModal.jsx';
 import SkeletonLoader from '../islands/SkeletonLoader.jsx';
+import SedeGate from '../islands/SedeGate.jsx';
 import SessionManager from '../islands/SessionManager.jsx';
 
 const { title, description, showHeader = true } = Astro.props;
@@ -61,12 +62,12 @@ const isLoginPage = Astro.url.pathname === '/login';
           class="pointer-events-none absolute inset-0 overflow-hidden rounded-full"
           style="background: linear-gradient(to bottom, rgba(255,255,255,0.7), rgba(255,255,255,0.35), rgba(255,255,255,0.15));"
         ></div>
-        <div class="relative z-10 mx-auto flex items-center justify-between px-6 py-2.5">
-          <a href="/" class="flex items-center gap-3" aria-label="Ir al inicio">
-            <img src={clientConfig.logo} alt={clientConfig.appName} class="h-10 w-10 rounded-md" />
-            <p class="text-sm font-semibold tracking-wide text-slate-700">{clientConfig.appName}</p>
+        <div class="relative z-10 mx-auto flex items-center justify-between px-3 py-2 sm:px-6 sm:py-2.5">
+          <a href="/" class="flex items-center gap-2 sm:gap-3" aria-label="Ir al inicio">
+            <img src={clientConfig.logo} alt={clientConfig.appName} class="h-8 w-8 sm:h-10 sm:w-10 rounded-md" />
+            <p class="text-xs font-semibold tracking-wide text-slate-700 sm:text-sm">{clientConfig.appName}</p>
           </a>
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2 sm:gap-4">
             <SedeDisplay client:load />
             <nav aria-label="acciones">
               <UserMenu client:load />
@@ -78,6 +79,7 @@ const isLoginPage = Astro.url.pathname === '/login';
     <SessionManager client:load />
     <ToastBridge client:load />
     {!isLoginPage && <SkeletonLoader client:load />}
+    {!isLoginPage && <SedeGate client:load />}
     {!isLoginPage && <SedeSelectionModal client:load />}
     <div id="main-content"><slot /></div>
     <AuthGate client:load currentPath={Astro.url.pathname} />
@@ -113,27 +115,23 @@ const isLoginPage = Astro.url.pathname === '/login';
 
           document.title = doc.title;
           window.scrollTo(0, 0);
-          attachNavigationListeners();
         } catch (e) {
           console.error('SPA navigation failed, falling back to full load', e);
           window.location.href = url;
         }
       }
 
-      function attachNavigationListeners() {
-        document.querySelectorAll('a').forEach(link => {
-          const href = link.getAttribute('href');
-          if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto:')) {
-            link.addEventListener('click', (e) => {
-              e.preventDefault();
-              window.history.pushState(null, '', href);
-              loadPage(href);
-            });
-          }
-        });
-      }
+      document.addEventListener('click', (e) => {
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto:')) {
+          e.preventDefault();
+          window.history.pushState(null, '', href);
+          loadPage(href);
+        }
+      });
 
-      attachNavigationListeners();
       updateGreetingMessage();
 
       window.addEventListener('popstate', () => {

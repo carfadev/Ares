@@ -2,22 +2,85 @@
 export const sedesConfig = {
   'ZONA FRANCA': {
     nombre: 'ZONA FRANCA',
-    bodegas: ['ZONA FRANCA 2', 'ZONA FRANCA 4', 'ZONA FRANCA 5', 'ZONA FRANCA 6']
+    bodegas: [
+      { nombre: 'ZONA FRANCA 2', cliente: '' },
+      { nombre: 'ZONA FRANCA 4', cliente: '' },
+      { nombre: 'ZONA FRANCA 5', cliente: '' },
+      { nombre: 'ZONA FRANCA 6', cliente: '' }
+    ]
   },
   'CELTA': {
     nombre: 'CELTA',
-    bodegas: ['BODEGA 79', 'BODEGA 29', 'BODEGA 78', 'BODEGA 61', 'BODEGA 98/2', 'BODEGA 31/502', 'BODEGA 116']
+    bodegas: [
+      { nombre: 'BODEGA 29', cliente: '' },
+      { nombre: 'BODEGA 31/502', cliente: '' },
+      { nombre: 'BODEGA 61', cliente: '' },
+      { nombre: 'BODEGA 78', cliente: '' },
+      { nombre: 'BODEGA 79', cliente: 'GWS' },
+      { nombre: 'BODEGA 98', cliente: '' },
+      { nombre: 'BODEGA 116', cliente: 'BAT' }
+    ]
   },
-  'INTEXZONA': { nombre: 'INTEXZONA', bodegas: ['BODEGA 13', 'BODEGA 40', 'BODEGA 95A', 'BODEGA 95B'] },
-  'RECODO': { nombre: 'RECODO', bodegas: ['RECODO'] },
-  'RIV': { nombre: 'RIV', bodegas: ['BODEGA 5i', 'BODEGA 2i', 'BODEGA 13i'] },
-  'YUMBO CORTIJO': { nombre: 'YUMBO CORTIJO', bodegas: ['YUMBO CORTIJO'] },
-  'TLC PISA': { nombre: 'TLC PISA', bodegas: ['TLC PISA'] },
-  'LA ESTRELLA MEDELLIN': { nombre: 'LA ESTRELLA MEDELLIN', bodegas: ['LA ESTRELLA MEDELLIN'] },
-  'CARTAGENA': { nombre: 'CARTAGENA', bodegas: ['CARTAGENA'] },
-  'SAN CAYETANO': { nombre: 'SAN CAYETANO', bodegas: ['BODEGA 5'] }
+  'INTEXZONA': {
+    nombre: 'INTEXZONA',
+    bodegas: [
+      { nombre: 'BODEGA 13', cliente: '' },
+      { nombre: 'BODEGA 40', cliente: '' },
+      { nombre: 'BODEGA 95A', cliente: '' }
+    ]
+  },
+  'RECODO': {
+    nombre: 'RECODO',
+    bodegas: [
+      { nombre: 'RECODO LIFTIT', cliente: 'OXXO' }
+    ]
+  },
+  'RIV': {
+    nombre: 'RIV',
+    bodegas: [
+      { nombre: 'BODEGA 2i', cliente: '' },
+      { nombre: 'BODEGA 5i', cliente: '' },
+      { nombre: 'BODEGA 13i', cliente: '' }
+    ]
+  },
+  'YUMBO CORTIJO': {
+    nombre: 'YUMBO CORTIJO',
+    bodegas: [
+      { nombre: 'YUMBO CORTIJO', cliente: '' }
+    ]
+  },
+  'TLC PISA': {
+    nombre: 'TLC PISA',
+    bodegas: [
+      { nombre: 'TLC PISA', cliente: '' }
+    ]
+  },
+  'LA ESTRELLA': {
+    nombre: 'LA ESTRELLA',
+    bodegas: [
+      { nombre: 'LA ESTRELLA', cliente: 'GWS' }
+    ]
+  },
+  'CARTAGENA': {
+    nombre: 'CARTAGENA',
+    bodegas: [
+      { nombre: 'CARTAGENA', cliente: '' }
+    ]
+  },
+  'SAN CAYETANO': {
+    nombre: 'SAN CAYETANO',
+    bodegas: [
+      { nombre: 'BODEGA 5', cliente: 'BAT' }
+    ]
+  }
 };
 
 export const getSedes = () => Object.keys(sedesConfig);
 
-export const getBodegasBySede = (sede) => sedesConfig[sede]?.bodegas || [];
+export const getBodegasBySede = (sede) =>
+  sedesConfig[sede]?.bodegas?.map((b) => b.nombre) || [];
+
+export const getClienteByBodega = (sede, bodegaNombre) => {
+  const bodega = sedesConfig[sede]?.bodegas?.find((b) => b.nombre === bodegaNombre);
+  return bodega?.cliente || '';
+};
