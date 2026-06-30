@@ -82,23 +82,28 @@ export async function subirEvidencias(
   files: File[],
   tipo: string,
   idRegistro: string,
-  userId: string
+  userId: string,
+  onProgress?: (completadas: number, total: number) => void
 ): Promise<EvidenciaSubida[]> {
   const resultados: EvidenciaSubida[] = [];
+
+  const promises = files.map(async (file, i) => {
+    const evidencia = await subirEvidencia(file, tipo, idRegistro, userId, i + 1);
+    resultados[i] = evidencia;
+    onProgress?.(resultados.filter(Boolean).length, files.length);
+    return evidencia;
+  });
+
   try {
-    for (let i = 0; i < files.length; i++) {
-      const evidencia = await subirEvidencia(files[i], tipo, idRegistro, userId, i + 1);
-      resultados.push(evidencia);
-    }
+    return await Promise.all(promises);
   } catch (err) {
     for (const ev of resultados) {
-      try {
-        await deleteObject(ref(storage, ev.path));
-      } catch {}
+      if (ev) {
+        try { await deleteObject(ref(storage, ev.path)); } catch {}
+      }
     }
     throw err;
   }
-  return resultados;
 }
 
 export async function eliminarEvidencia(path: string): Promise<void> {

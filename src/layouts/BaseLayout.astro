@@ -14,6 +14,7 @@ import SedeSelectionModal from '../islands/SedeSelectionModal.jsx';
 import SkeletonLoader from '../islands/SkeletonLoader.jsx';
 import SedeGate from '../islands/SedeGate.jsx';
 import SessionManager from '../islands/SessionManager.jsx';
+import InstallPrompt from '../islands/InstallPrompt.jsx';
 
 const { title, description, showHeader = true } = Astro.props;
 const isLoginPage = Astro.url.pathname === '/login';
@@ -33,6 +34,11 @@ const isLoginPage = Astro.url.pathname === '/login';
     {description && <meta name="description" content={description} />}
     <title>{title}</title>
     <script is:inline>
+      window.__deferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.__deferredPrompt = e;
+      });
       window.getGreetingMessage = function getGreetingMessage() {
         const currentHour = new Date().getHours();
 
@@ -83,6 +89,7 @@ const isLoginPage = Astro.url.pathname === '/login';
     {!isLoginPage && <SedeSelectionModal client:load />}
     <div id="main-content"><slot /></div>
     <AuthGate client:load currentPath={Astro.url.pathname} />
+    <InstallPrompt client:load />
 
     <script is:inline>
       function updateGreetingMessage() {

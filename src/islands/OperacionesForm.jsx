@@ -305,7 +305,6 @@ export default function OperacionesForm() {
     e.preventDefault();
     if (!validarFormulario()) { notifyError('Corrija los errores'); return; }
     setGuardando(true);
-    setStatusText('Comprimiendo imágenes...');
 
     try {
       const userId = auth.currentUser?.uid;
@@ -314,8 +313,10 @@ export default function OperacionesForm() {
 
       if (modoCierre) {
         if (imagenes.length > 0) {
-          setStatusText('Subiendo imágenes a la nube...');
-          evidenciasSubidas = await subirEvidencias(imagenes, 'operaciones', operacionCierre.id, userId);
+          evidenciasSubidas = await subirEvidencias(
+            imagenes, 'operaciones', operacionCierre.id, userId,
+            (c, t) => setStatusText(`Subiendo evidencias... ${c}/${t}`)
+          );
         }
 
         setStatusText('Guardando registro en Firestore...');
@@ -386,8 +387,10 @@ export default function OperacionesForm() {
         const idRegistro = docRef.id;
 
         if (imagenes.length > 0) {
-          setStatusText('Subiendo imágenes a la nube...');
-          evidenciasSubidas = await subirEvidencias(imagenes, 'operaciones', idRegistro, userId);
+          evidenciasSubidas = await subirEvidencias(
+            imagenes, 'operaciones', idRegistro, userId,
+            (c, t) => setStatusText(`Subiendo evidencias... ${c}/${t}`)
+          );
         }
 
         setStatusText('Guardando registro en Firestore...');
