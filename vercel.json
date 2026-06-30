@@ -6,6 +6,14 @@
       "config": { "distDir": "dist" }
     }
   ],
+  "headers": [
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json" }
+      ]
+    }
+  ],
   "routes": [
     { "handle": "filesystem" },
     { "src": "^/(.*)$", "dest": "/index.html" }

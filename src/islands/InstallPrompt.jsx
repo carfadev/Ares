@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { clientConfig } from '../../client.config';
+import useStore from '../lib/store';
 
 export default function InstallPrompt() {
+  const user = useStore((s) => s.user);
   const [isInstalled, setIsInstalled] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [installing, setInstalling] = useState(false);
@@ -12,16 +14,21 @@ export default function InstallPrompt() {
     setIsInstalled(installed);
     if (installed) return;
 
-    setShow(true);
+    if (!user) {
+      setShow(false);
+      return;
+    }
 
     const captured = window.__deferredPrompt;
     if (captured) {
       setDeferredPrompt(captured);
+      setShow(true);
     }
 
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      if (user) setShow(true);
     };
 
     const handleAppInstalled = () => {
@@ -36,7 +43,7 @@ export default function InstallPrompt() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, []);
+  }, [user]);
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
