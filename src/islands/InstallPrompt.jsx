@@ -64,11 +64,17 @@ export default function InstallPrompt() {
 
   if (!show || isInstalled) return null;
 
+  const isNativePromptAvailable = !!deferredPrompt;
+
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-2xl">
+    <div
+      className={isNativePromptAvailable
+        ? 'fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm'
+        : 'fixed inset-x-0 bottom-4 z-[90] flex justify-center px-4'}
+    >
+      <div className={isNativePromptAvailable ? 'mx-4 w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-2xl' : 'w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-2xl'}>
         <div
-          className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl"
+          className={isNativePromptAvailable ? 'mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl' : 'mb-4 flex h-12 w-12 items-center justify-center rounded-xl'}
           style={{ background: clientConfig.colors.secundario }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -78,11 +84,11 @@ export default function InstallPrompt() {
           </svg>
         </div>
 
-        <h2 className="text-xl font-bold text-slate-900">
+        <h2 className={isNativePromptAvailable ? 'text-xl font-bold text-slate-900' : 'text-lg font-bold text-slate-900'}>
           Instala {clientConfig.appName}
         </h2>
 
-        <p className="mt-3 text-sm leading-relaxed text-slate-600">
+        <p className={isNativePromptAvailable ? 'mt-3 text-sm leading-relaxed text-slate-600' : 'mt-2 text-sm leading-relaxed text-slate-600'}>
           Para garantizar la mejor experiencia y un acceso más rápido,{' '}
           <strong className="text-slate-800">{clientConfig.appName}</strong> debe instalarse
           en este dispositivo.
@@ -111,7 +117,7 @@ export default function InstallPrompt() {
 
             <button
               onClick={handleDismiss}
-              className="mt-6 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2"
+              className="mt-5 inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2"
             >
               Entendido
             </button>
