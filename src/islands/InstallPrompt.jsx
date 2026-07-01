@@ -12,18 +12,17 @@ export default function InstallPrompt() {
   useEffect(() => {
     const installed = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     setIsInstalled(installed);
+
     if (installed) return;
 
     if (!user) {
+      setDeferredPrompt(null);
       setShow(false);
       return;
     }
 
-    const captured = window.__deferredPrompt;
-    if (captured) {
-      setDeferredPrompt(captured);
-      setShow(true);
-    }
+    setShow(true);
+    setDeferredPrompt(window.__deferredPrompt || null);
 
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
@@ -33,6 +32,7 @@ export default function InstallPrompt() {
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
+      setDeferredPrompt(null);
       setShow(false);
     };
 
@@ -56,6 +56,10 @@ export default function InstallPrompt() {
       setIsInstalled(true);
       setShow(false);
     }
+  };
+
+  const handleDismiss = () => {
+    setShow(false);
   };
 
   if (!show || isInstalled) return null;
@@ -84,18 +88,35 @@ export default function InstallPrompt() {
           en este dispositivo.
         </p>
 
-        <p className="mt-2 text-xs leading-relaxed text-slate-500">
-          Una vez instalada podrás acceder desde el escritorio o desde el menú de aplicaciones.
-        </p>
+        {deferredPrompt ? (
+          <>
+            {/* <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              Una vez instalada podrás acceder desde el escritorio o desde el menú de aplicaciones.
+            </p> */}
 
-        <button
-          onClick={handleInstall}
-          disabled={installing}
-          className="mt-6 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-xl text-sm font-semibold text-white shadow-lg transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60"
-          style={{ background: clientConfig.gradients.primario }}
-        >
-          {installing ? 'INSTALANDO…' : 'INSTALAR ARES'}
-        </button>
+            <button
+              onClick={handleInstall}
+              disabled={installing}
+              className="mt-6 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-xl text-sm font-semibold text-white shadow-lg transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60"
+              style={{ background: clientConfig.gradients.primario }}
+            >
+              {installing ? 'INSTALANDO…' : 'INSTALAR ARES'}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              Abre el menú del navegador y usa la opción de instalar la app para agregarla a tu dispositivo.
+            </p>
+
+            <button
+              onClick={handleDismiss}
+              className="mt-6 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2"
+            >
+              Entendido
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
